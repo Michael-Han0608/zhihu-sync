@@ -5,6 +5,7 @@ import { usePageDetect } from '../hooks/usePageDetect';
 import { ArticlePanel } from './ArticlePanel';
 import { CollectionPanel } from './CollectionPanel';
 import { ColumnPanel } from './ColumnPanel';
+import { ProfilePanel } from './ProfilePanel';
 
 export function ContentApp() {
   const panelOpen = useUIStore((s) => s.panelOpen);
@@ -37,7 +38,7 @@ export function ContentApp() {
         <div style={{ textAlign: 'center', padding: 16, color: '#888', fontSize: 13 }}>
           当前页面不是可导出的知乎内容
           <br />
-          <span style={{ fontSize: 12, color: '#aaa' }}>支持：文章、回答、问题、想法、收藏夹、专栏</span>
+          <span style={{ fontSize: 12, color: '#aaa' }}>支持：文章、回答、问题、想法、收藏夹、专栏、个人主页</span>
         </div>
       </PanelWrapper>
     );
@@ -47,7 +48,8 @@ export function ContentApp() {
     <PanelWrapper onClose={() => setPanelOpen(false)}>
       {pageInfo.type === 'collection' && collectionInfo && <CollectionPanel info={collectionInfo} />}
       {pageInfo.type === 'column' && collectionInfo && <ColumnPanel info={collectionInfo} />}
-      {!['collection', 'column'].includes(pageInfo.type) && content && (
+      {pageInfo.type === 'profile' && collectionInfo && <ProfilePanel info={collectionInfo} />}
+      {!['collection', 'column', 'profile'].includes(pageInfo.type) && content && (
         <ArticlePanel content={content} pageInfo={pageInfo} />
       )}
     </PanelWrapper>

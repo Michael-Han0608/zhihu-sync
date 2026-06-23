@@ -16,8 +16,8 @@ export function ExportManager() {
   const collectionId = params.get('id') || '';
   const collectionName = params.get('name') || '未知';
   const collectionApiUrl = params.get('api') || '';
-  const sourceType = (params.get('source') || 'collection') as 'collection' | 'column';
-  const sourceLabel = sourceType === 'column' ? '专栏' : '收藏夹';
+  const sourceType = (params.get('source') || 'collection') as 'collection' | 'column' | 'profile';
+  const sourceLabel = sourceType === 'profile' ? '个人主页' : sourceType === 'column' ? '专栏' : '收藏夹';
   const dirHandle = useExportStore((s) => s.dirHandle);
   const addLog = useUIStore((s) => s.addLog);
 

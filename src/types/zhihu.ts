@@ -1,5 +1,5 @@
 /** 页面类型 */
-export type PageType = 'article' | 'answer' | 'question' | 'pin' | 'collection' | 'column';
+export type PageType = 'article' | 'answer' | 'question' | 'pin' | 'collection' | 'column' | 'profile';
 
 /** 页面检测结果 */
 export interface PageInfo {

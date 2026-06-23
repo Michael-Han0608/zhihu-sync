@@ -50,6 +50,7 @@ export function detectPage(url: string): PageInfo | null {
     { type: 'collection' as const, regex: /zhihu\.com\/collection\/(\d+)/ },
     { type: 'column' as const, regex: /zhihu\.com\/column\/([^/?#]+)/ },
     { type: 'column' as const, regex: /zhuanlan\.zhihu\.com\/([^/?#p][^/?#]*)/ },
+    { type: 'profile' as const, regex: /zhihu\.com\/people\/([^/?#]+)/ },
   ];
 
   for (const { type, regex } of patterns) {
@@ -353,4 +354,39 @@ export async function fetchFullContent(type: string, itemUrl: string): Promise<s
 
   // 取更长的
   return fromDOM.length > fromData.length ? fromDOM : (fromData || null);
+}
+
+// ============================
+// 个人主页动态 API
+// ============================
+
+/** 个人主页动态中需要导出的 verb 类型 */
+const PROFILE_VERBS = new Set([
+  'MEMBER_CREATE_ARTICLE',
+  'MEMBER_ANSWER_QUESTION',
+  'MEMBER_CREATE_PIN',
+]);
+
+export async function fetchProfilePage(apiUrl: string): Promise<PaginatedResult> {
+  const response = await apiFetch(apiUrl);
+
+  if (!response.ok) {
+    throw new Error(`API 请求失败: ${response.status}`);
+  }
+
+  const data = await response.json() as any;
+  const paging = data.paging || {};
+
+  const items: ContentItem[] = (data.data || [])
+    .filter((item: any) => PROFILE_VERBS.has(item.verb))
+    .map((item: any) => {
+      const target = item.target || {};
+      return parseContentItem(target, target.created_time || item.created_time || 0);
+    });
+
+  return {
+    items,
+    nextUrl: paging.is_end ? null : fixHttpUrl(paging.next),
+    totals: paging.totals || 0,
+  };
 }

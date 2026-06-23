@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Switch, Segmented, Progress, Typography, Space, Divider } from 'antd';
 import { useExportStore } from '@/shared/stores/exportStore';
 import { useUIStore } from '@/shared/stores/uiStore';
-import { fetchCollectionPage, fetchColumnPage, checkPaidAccess, fetchFullContent } from '@/shared/api/zhihu-api';
+import { fetchCollectionPage, fetchColumnPage, fetchProfilePage, checkPaidAccess, fetchFullContent } from '@/shared/api/zhihu-api';
 import {
   sanitizeFilename,
   buildFrontmatter,
@@ -23,7 +23,7 @@ interface Props {
   collectionId: string;
   collectionName: string;
   collectionApiUrl: string;
-  sourceType: 'collection' | 'column';
+  sourceType: 'collection' | 'column' | 'profile';
 }
 
 /**
@@ -73,7 +73,7 @@ export function ArticleList({
   // 获取收藏夹/专栏总篇数
   const [totalCount, setTotalCount] = useState<number | null>(null);
   useEffect(() => {
-    const fetchFn = sourceType === 'column' ? fetchColumnPage : fetchCollectionPage;
+    const fetchFn = sourceType === 'profile' ? fetchProfilePage : sourceType === 'column' ? fetchColumnPage : fetchCollectionPage;
     fetchFn(collectionApiUrl)
       .then((result) => {
         // 没有下一页时用实际 items 数量（比 paging.totals 更准确）
@@ -88,7 +88,7 @@ export function ArticleList({
    */
   const fetchDirectoryPages = useCallback(
     async (onPage: (items: ContentItem[], pageNum: number) => Promise<void>) => {
-      const fetchFn = sourceType === 'column' ? fetchColumnPage : fetchCollectionPage;
+      const fetchFn = sourceType === 'profile' ? fetchProfilePage : sourceType === 'column' ? fetchColumnPage : fetchCollectionPage;
       let nextPageUrl: string | null = collectionApiUrl;
       let pageNum = 0;
       let totalFetched = 0;

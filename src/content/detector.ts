@@ -4,11 +4,11 @@
  * 所有函数以 named export 供其他模块调用
  */
 
-import { detectPage, fetchCollectionPage, fetchColumnPage, fetchAllComments } from '@/shared/api/zhihu-api';
+import { detectPage, fetchCollectionPage, fetchColumnPage, fetchProfilePage, fetchAllComments } from '@/shared/api/zhihu-api';
 import type { PageInfo, ExtractedContent, CollectionInfo } from '@/types/zhihu';
 
 // Re-export API functions for convenience
-export { detectPage, fetchCollectionPage, fetchColumnPage, fetchAllComments };
+export { detectPage, fetchCollectionPage, fetchColumnPage, fetchProfilePage, fetchAllComments };
 
 // ============================
 // 单篇内容提取
@@ -261,6 +261,70 @@ export function getColumnInfo(): CollectionInfo | null {
     itemCount: 0,
     apiUrl: `https://www.zhihu.com/api/v4/columns/${id}/items`,
   };
+}
+
+// ============================
+// 个人主页信息（需要 DOM）
+// ============================
+
+export function getProfileInfo(): CollectionInfo | null {
+  const url = window.location.href;
+  const match = url.match(/zhihu\.com\/people\/([^/?#]+)/);
+  if (!match) return null;
+
+  const urlToken = match[1];
+
+  // 仅允许导出当前登录用户自己的主页，防止滥用
+  if (!isCurrentUserProfile(urlToken)) return null;
+
+  // 从页面提取用户名
+  let title = '';
+  const nameEl = document.querySelector('.ProfileHeader-name') ||
+                 document.querySelector('[class*="ProfileHeader"] .Avatar + span') ||
+                 document.querySelector('h1');
+  if (nameEl) {
+    title = nameEl.textContent?.trim() || '';
+  }
+
+  if (!title) {
+    const pageTitle = (document.title || '').replace(/^\(\d+\s*条消息\)\s*/, '');
+    title = pageTitle.split(' - ')[0].trim();
+  }
+
+  if (!title) {
+    title = decodeURIComponent(urlToken);
+  }
+
+  return {
+    id: urlToken,
+    title,
+    itemCount: 0,
+    apiUrl: `https://www.zhihu.com/api/v3/moments/${urlToken}/activities?page_num=1`,
+  };
+}
+
+/**
+ * 判断当前页面的 profile 是否属于已登录用户本人
+ * 优先从 initialData 读取，兜底检测 DOM 中的「编辑资料」按钮
+ */
+function isCurrentUserProfile(urlToken: string): boolean {
+  // 方式 1：从 initialData 中比较当前登录用户的 urlToken
+  const scriptTag = document.querySelector('script#js-initialData[type="text/json"]');
+  if (scriptTag?.textContent) {
+    try {
+      const initialData = JSON.parse(scriptTag.textContent) as any;
+      const currentUserToken =
+        initialData?.initialState?.entities?.currentUser?.urlToken ||
+        initialData?.initialState?.currentUser;
+      if (currentUserToken && currentUserToken === urlToken) return true;
+      // initialData 存在但 token 不匹配 → 不是本人
+      if (currentUserToken) return false;
+    } catch { /* 解析失败，走兜底逻辑 */ }
+  }
+
+  // 方式 2：DOM 中存在「编辑个人资料」按钮，说明是本人主页
+  const editBtn = document.querySelector('.ProfileHeader-editButton, [class*="ProfileHeader"] button[class*="edit"], a[href="/settings/profile"]');
+  return !!editBtn;
 }
 
 // ============================
