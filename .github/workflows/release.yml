@@ -31,12 +31,12 @@ jobs:
         id: version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
 
-      - name: Verify manifest version matches tag
+      - name: Verify package.json version matches tag
         run: |
-          MANIFEST_VERSION=$(grep -oP "version:\s*'(\K[^']+)" src/manifest.ts)
+          PKG_VERSION=$(node -p "require('./package.json').version")
           TAG_VERSION=${{ steps.version.outputs.VERSION }}
-          if [ "$MANIFEST_VERSION" != "$TAG_VERSION" ]; then
-            echo "::error::src/manifest.ts version ($MANIFEST_VERSION) does not match tag (v$TAG_VERSION)"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match tag (v$TAG_VERSION)"
             exit 1
           fi
 
@@ -52,11 +52,36 @@ jobs:
           cd ..
           echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
+      - name: Generate release notes
+        run: |
+          set -e
+          {
+            node scripts/extract-changelog.mjs "${{ steps.version.outputs.VERSION }}" README.md
+            printf '\n\n## 安装方法\n\n### Chrome\n'
+            printf '1. 下载下方的 `${{ steps.build.outputs.ZIP_NAME }}` 文件\n'
+            printf '2. 解压到一个固定位置\n'
+            printf '3. 打开 Chrome，访问 `chrome://extensions/`\n'
+            printf '4. 右上角开启「开发者模式」\n'
+            printf '5. 点击「加载已解压的扩展程序」，选择解压后的文件夹\n'
+            printf '\n### Edge\n'
+            printf '1. 下载下方的 `${{ steps.build.outputs.ZIP_NAME }}` 文件\n'
+            printf '2. 解压到一个固定位置\n'
+            printf '3. 打开 Edge，访问 `edge://extensions/`\n'
+            printf '4. 左下角开启「开发人员模式」\n'
+            printf '5. 点击「加载解压缩的扩展」，选择解压后的文件夹\n'
+            printf '\n访问知乎任意文章/回答/收藏夹/专栏页面，右下角会出现蓝色浮动按钮。\n'
+          } > release-body.md
+          echo "::group::release-body.md"
+          cat release-body.md
+          echo "::endgroup::"
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: extension-zip
-          path: ${{ steps.build.outputs.ZIP_NAME }}
+          path: |
+            ${{ steps.build.outputs.ZIP_NAME }}
+            release-body.md
 
   github-release:
     needs: build
@@ -72,24 +97,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: v${{ needs.build.outputs.version }}
-          body: |
-            ## 安装方法
-
-            ### Chrome
-            1. 下载下方的 `${{ needs.build.outputs.zip_name }}` 文件
-            2. 解压到一个固定位置
-            3. 打开 Chrome，访问 `chrome://extensions/`
-            4. 右上角开启「开发者模式」
-            5. 点击「加载已解压的扩展程序」，选择解压后的文件夹
-
-            ### Edge
-            1. 下载下方的 `${{ needs.build.outputs.zip_name }}` 文件
-            2. 解压到一个固定位置
-            3. 打开 Edge，访问 `edge://extensions/`
-            4. 左下角开启「开发人员模式」
-            5. 点击「加载解压缩的扩展」，选择解压后的文件夹
-
-            访问知乎任意文章/回答/收藏夹/专栏页面，右下角会出现蓝色浮动按钮。
+          body_path: release-body.md
           files: ${{ needs.build.outputs.zip_name }}
 
   # ==========================================
