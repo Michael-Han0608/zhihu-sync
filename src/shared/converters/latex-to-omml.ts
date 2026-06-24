@@ -86,6 +86,37 @@ export function fixAccents(omml: string): string {
   return new XMLSerializer().serializeToString(doc);
 }
 
+/**
+ * 修复 n-ary 算符(∑ ∏ ∫ 等)的空操作数方框。
+ * mml2omml 把 ∑ 的被作用项留在 nary 外面(<m:e/> 为空,被作用项作为后续兄弟节点),
+ * Word 会把空的 <m:e> 渲染成一个空白方框。把 nary 紧邻的下一个元素兄弟移入空的
+ * <m:e>,消除空白方框 —— nary 的操作数本就渲染在算符右侧,视觉位置不变。
+ */
+export function fixNaryEmptyOperand(omml: string): string {
+  const doc = new DOMParser().parseFromString(omml, 'application/xml');
+  // 每次移动都会改变结构,循环直到没有可填充的空 nary;以元素总数为上界防止死循环。
+  const limit = doc.getElementsByTagName('*').length + 1;
+  for (let guard = 0; guard < limit; guard++) {
+    const naries = Array.from(doc.getElementsByTagName('m:nary'));
+    let changed = false;
+    for (const nary of naries) {
+      const e = childByTag(nary, 'm:e');
+      if (!e) continue;
+      const hasContent = Array.from(e.childNodes).some((n) => n.nodeType === 1);
+      if (hasContent) continue;
+      // 找紧邻的下一个元素兄弟(跳过空白文本节点)
+      let sib = nary.nextSibling;
+      while (sib && sib.nodeType !== 1) sib = sib.nextSibling;
+      if (!sib) continue;
+      e.appendChild(sib); // 移动该兄弟进入 e(自动从原位置脱离)
+      changed = true;
+      break; // 结构已变,重新查询
+    }
+    if (!changed) break;
+  }
+  return new XMLSerializer().serializeToString(doc);
+}
+
 /** 把 oMath 的内容整体包进 borderBox(用于整体 \boxed) */
 export function wrapWithBorderBox(omml: string): string {
   const doc = new DOMParser().parseFromString(omml, 'application/xml');
@@ -109,6 +140,7 @@ export function latexToOmmlString(latex: string, opts: { display: boolean }): st
   if (!/<m:r[ >/]/.test(omml)) return null;
 
   omml = fixAccents(omml);
+  omml = fixNaryEmptyOperand(omml);
   if (boxed) omml = wrapWithBorderBox(omml);
   return omml;
 }

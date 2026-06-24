@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unwrapBoxed, fixAccents, wrapWithBorderBox, latexToOmmlString, convertLatexToOmml } from '@/shared/converters/latex-to-omml';
+import { unwrapBoxed, fixAccents, fixNaryEmptyOperand, wrapWithBorderBox, latexToOmmlString, convertLatexToOmml } from '@/shared/converters/latex-to-omml';
 
 describe('unwrapBoxed', () => {
   it('剥离整体 boxed', () => {
@@ -81,6 +81,40 @@ describe('latexToOmmlString', () => {
 
   it('整体 \\boxed 产出 borderBox', () => {
     expect(latexToOmmlString('\\boxed{x=1}', { display: true })!).toContain('<m:borderBox');
+  });
+
+  it('\\sum 不残留空 <m:e/>(消除 Word 空白方框)', () => {
+    const out = latexToOmmlString('\\sum_n c_n', { display: true })!;
+    expect(out).toContain('<m:nary');
+    expect(out).not.toMatch(/<m:e\s*\/>/); // 无空操作数
+    expect(out).not.toContain('<m:e></m:e>');
+  });
+});
+
+describe('fixNaryEmptyOperand', () => {
+  const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+  const naryWithEmptyE =
+    `<m:oMath xmlns:m="${M_NS}">` +
+    '<m:nary><m:naryPr><m:chr m:val="∑"/></m:naryPr>' +
+    '<m:sub><m:r><m:t>n</m:t></m:r></m:sub><m:sup/><m:e/></m:nary>' +
+    '<m:sSub><m:e><m:r><m:t>c</m:t></m:r></m:e><m:sub><m:r><m:t>n</m:t></m:r></m:sub></m:sSub>' +
+    '</m:oMath>';
+
+  it('把 nary 后的兄弟移入空的 <m:e>', () => {
+    const out = fixNaryEmptyOperand(naryWithEmptyE);
+    expect(out).not.toMatch(/<m:e\s*\/>/);
+    expect(out).not.toContain('<m:e></m:e>');
+    // 被作用项 sSub 现在位于 nary 的 <m:e> 内
+    expect(out).toMatch(/<m:e><m:sSub/);
+  });
+
+  it('nary 的 <m:e> 已有内容时不动它', () => {
+    const filled =
+      `<m:oMath xmlns:m="${M_NS}">` +
+      '<m:nary><m:naryPr><m:chr m:val="∫"/></m:naryPr><m:sub/><m:sup/>' +
+      '<m:e><m:r><m:t>x</m:t></m:r></m:e></m:nary></m:oMath>';
+    const out = fixNaryEmptyOperand(filled);
+    expect(out).toContain('<m:t>x</m:t>');
   });
 });
 

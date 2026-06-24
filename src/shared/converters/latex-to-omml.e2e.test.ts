@@ -67,4 +67,11 @@ describe('端到端 docx 公式注入验证', () => {
     // 本测试用无对齐的 Paragraph 构建,oMath 应直接作为 <w:p> 的子节点
     expect(documentXml).toMatch(/<w:p><m:oMath/);
   });
+
+  it('n-ary 算符(∑/∏/∫)无空操作数,避免 Word 空白方框', () => {
+    // 回归守卫:mml2omml 把被作用项留在 nary 外面会产生空 <m:e/>,
+    // Word 渲染成空白方框;fixNaryEmptyOperand 应已把它填上。
+    expect(documentXml).not.toContain('<m:e/></m:nary>');
+    expect(documentXml).not.toContain('<m:e></m:e></m:nary>');
+  });
 });
