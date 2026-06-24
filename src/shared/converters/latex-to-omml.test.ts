@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unwrapBoxed } from '@/shared/converters/latex-to-omml';
+import { unwrapBoxed, fixAccents } from '@/shared/converters/latex-to-omml';
 
 describe('unwrapBoxed', () => {
   it('剥离整体 boxed', () => {
@@ -13,5 +13,28 @@ describe('unwrapBoxed', () => {
   });
   it('无 boxed 原样返回', () => {
     expect(unwrapBoxed('x=1')).toEqual({ inner: 'x=1', boxed: false });
+  });
+});
+
+describe('fixAccents', () => {
+  const dotOmml =
+    '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">' +
+    '<m:limUpp><m:e><m:r><m:t>c</m:t></m:r></m:e>' +
+    '<m:lim><m:r><m:t>˙</m:t></m:r></m:lim></m:limUpp></m:oMath>';
+
+  it('把重音 limUpp 改写成 acc', () => {
+    const out = fixAccents(dotOmml);
+    expect(out).toContain('<m:acc');
+    expect(out).toMatch(/<m:chr m:val="˙"\s*\/?>/);
+    expect(out).not.toContain('<m:limUpp');
+    expect(out).toContain('<m:t>c</m:t>'); // 基底保留
+  });
+
+  it('非重音 limUpp(真实上极限)不动', () => {
+    const lim =
+      '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">' +
+      '<m:limUpp><m:e><m:r><m:t>x</m:t></m:r></m:e>' +
+      '<m:lim><m:r><m:t>n</m:t></m:r></m:lim></m:limUpp></m:oMath>';
+    expect(fixAccents(lim)).toContain('<m:limUpp');
   });
 });

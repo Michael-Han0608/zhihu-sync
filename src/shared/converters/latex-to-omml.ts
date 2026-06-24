@@ -2,6 +2,29 @@
 // LaTeX → 可注入文档的 OMML 组件
 // 依赖: temml, mathml2omml(vendored), docx
 
+export const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+
+/** 实测:10 种 LaTeX 重音经 mml2omml 落为 limUpp,lim 文本为下列单字符 */
+const ACCENT_CHARS = new Set([
+  '˙', // ˙ \dot
+  '¨', // ¨ \ddot
+  '^', //   \hat
+  '→', // → \vec
+  '‾', // ‾ \bar
+  '~', //   \tilde
+  'ˇ', // ˇ \check
+  '˘', // ˘ \breve
+  '´', // ´ \acute
+  '`', //   \grave
+]);
+
+function childByTag(parent: Element, qname: string): Element | null {
+  for (const node of Array.from(parent.childNodes)) {
+    if (node.nodeType === 1 && (node as Element).nodeName === qname) return node as Element;
+  }
+  return null;
+}
+
 /**
  * 若 LaTeX 整体被 \boxed{} 包裹,剥离并标记;否则原样返回。
  * "整体"指第一个 { 的配对 } 恰好是字符串末尾。
@@ -29,4 +52,33 @@ export function unwrapBoxed(latex: string): { inner: string; boxed: boolean } {
     }
   }
   return { inner: latex, boxed: false };
+}
+
+/** 把 lim 为重音字符的 limUpp 改写为 acc(循环处理以覆盖嵌套) */
+export function fixAccents(omml: string): string {
+  const doc = new DOMParser().parseFromString(omml, 'application/xml');
+  for (;;) {
+    const limUpps = Array.from(doc.getElementsByTagName('m:limUpp'));
+    let changed = false;
+    for (const limUpp of limUpps) {
+      const e = childByTag(limUpp, 'm:e');
+      const lim = childByTag(limUpp, 'm:lim');
+      if (!e || !lim) continue;
+      const ch = (lim.textContent ?? '').trim();
+      if (!ACCENT_CHARS.has(ch)) continue;
+
+      const acc = doc.createElementNS(M_NS, 'm:acc');
+      const accPr = doc.createElementNS(M_NS, 'm:accPr');
+      const chr = doc.createElementNS(M_NS, 'm:chr');
+      chr.setAttribute('m:val', ch);
+      accPr.appendChild(chr);
+      acc.appendChild(accPr);
+      acc.appendChild(e); // 把基底 e 迁入 acc(自动从 limUpp 脱离)
+      limUpp.parentNode?.replaceChild(acc, limUpp);
+      changed = true;
+      break; // 结构已变,重新查询
+    }
+    if (!changed) break;
+  }
+  return new XMLSerializer().serializeToString(doc);
 }
