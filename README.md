@@ -176,6 +176,14 @@ src/
 
 本扩展不会在后台运行，不会访问其他标签页或浏览数据。
 
+## 发布流程(维护者)
+
+1. 在下方「更新日志」新增 `### vX.Y.Z` 小节并写明本次变更(CI 会直接复用为 GitHub Release 正文;缺失则发布失败)。
+2. 提交改动:`git commit -am "docs: vX.Y.Z 更新日志"`。
+3. 升版本并打 tag(三选一):`npm version patch` / `npm version minor` / `npm version major` —— 自动 bump `package.json`、提交并打好 `vX.Y.Z` tag(`src/manifest.ts` 版本由 `package.json` 自动派生,无需手改)。
+4. 推送:`git push --follow-tags`。
+5. 其余交给 CI:校验版本 == tag → 构建打包 → 发 GitHub Release(正文 = 更新日志 + 安装说明)→ 发布到 Chrome Web Store / Edge Add-ons。
+
 ## 更新日志
 
 ### v3.1.0
