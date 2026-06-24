@@ -12,7 +12,7 @@ import {
 } from 'docx';
 
 import {
-  getLatex, isMath, isInlineMath,
+  getLatex, isMath,
   getImageUrl, isImage,
   isFootnote, getFootnoteInfo,
   isVideo, getVideoInfo,

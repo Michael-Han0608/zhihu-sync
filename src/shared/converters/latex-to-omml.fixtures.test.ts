@@ -5,6 +5,10 @@ import fixtures from '../../../docs/superpowers/specs/2026-06-24-word-formula-om
 const formulas = fixtures as string[];
 
 describe('真实公式回归(96 条)', () => {
+  it('夹具共 96 条公式', () => {
+    expect(formulas.length).toBe(96);
+  });
+
   it('display 模式下每条都产出非空 OMML(无静默丢失)', () => {
     const blanks = formulas.filter((f) => latexToOmmlString(f, { display: true }) === null);
     expect(blanks).toEqual([]);
