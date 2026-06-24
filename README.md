@@ -177,6 +177,17 @@ src/
 
 ## 更新日志
 
+### v3.1.0
+
+- **Word 公式导出重构**：改用 OMML 直接注入(temml → mml2omml → `ImportedXmlComponent`),替换有损的手写 OMML→docx 转换器
+- 修复多行公式(`\begin{equation}`/`\begin{split}` 等)在 Word 中导出为空白
+- 修复 `\oint`(环路积分)、`\prod`(连乘)被错误渲染为求和号 Σ
+- 修复 `\mathbf`/`\mathcal`/`\text`/`\operatorname` 等样式丢失为默认斜体
+- 修复 `\dot`/`\vec`/`\hat` 等重音渲染异常(改为正确的 `m:acc`/`m:groupChr`)
+- 还原 `\boxed{}` 公式方框
+- 消除 ∑/∏/∫ 等算符后的空白方框
+- 引入 Vitest + jsdom 测试体系:含 96 条真实公式回归测试与端到端 `.docx` 校验
+
 ### v3.0.0
 
 - **全面重构**：从原生 JavaScript 迁移至 React 19 + Ant Design 5 + TypeScript + Zustand

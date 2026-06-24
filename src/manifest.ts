@@ -4,7 +4,7 @@ export default defineManifest({
   manifest_version: 3,
   name: '知乎文章下载器',
   description: '将知乎文章、回答、问题、想法、收藏夹导出为 Markdown 或 Word (.docx) 文件',
-  version: '3.0.0',
+  version: '3.1.0',
   permissions: ['activeTab', 'storage', 'unlimitedStorage', 'scripting'],
   host_permissions: [
     'https://www.zhihu.com/*',
