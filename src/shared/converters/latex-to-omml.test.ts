@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unwrapBoxed, fixAccents, wrapWithBorderBox, latexToOmmlString } from '@/shared/converters/latex-to-omml';
+import { unwrapBoxed, fixAccents, wrapWithBorderBox, latexToOmmlString, convertLatexToOmml } from '@/shared/converters/latex-to-omml';
 
 describe('unwrapBoxed', () => {
   it('剥离整体 boxed', () => {
@@ -81,5 +81,15 @@ describe('latexToOmmlString', () => {
 
   it('整体 \\boxed 产出 borderBox', () => {
     expect(latexToOmmlString('\\boxed{x=1}', { display: true })!).toContain('<m:borderBox');
+  });
+});
+
+describe('convertLatexToOmml', () => {
+  it('成功公式返回非空组件', () => {
+    expect(convertLatexToOmml('x=1', { display: false })).not.toBeNull();
+  });
+  it('inline 模式多行环境返回 null', () => {
+    const tex = '\\begin{equation}\\begin{split} a &= b \\end{split}\\end{equation}';
+    expect(convertLatexToOmml(tex, { display: false })).toBeNull();
   });
 });

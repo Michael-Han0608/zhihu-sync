@@ -3,6 +3,7 @@
 // 依赖: temml, mathml2omml(vendored), docx
 import temml from 'temml';
 import { mml2omml } from '@/vendor/mathml2omml.min.js';
+import { ImportedXmlComponent } from 'docx';
 
 export const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 
@@ -110,4 +111,19 @@ export function latexToOmmlString(latex: string, opts: { display: boolean }): st
   omml = fixAccents(omml);
   if (boxed) omml = wrapWithBorderBox(omml);
   return omml;
+}
+
+/** LaTeX → 可注入 Paragraph/inline 的 OMML 组件;失败返回 null */
+export function convertLatexToOmml(
+  latex: string,
+  opts: { display: boolean },
+): ImportedXmlComponent | null {
+  const omml = latexToOmmlString(latex, opts);
+  if (!omml) return null;
+  try {
+    return ImportedXmlComponent.fromXmlString(omml);
+  } catch (e) {
+    console.warn('OMML 注入失败:', latex, e);
+    return null;
+  }
 }
