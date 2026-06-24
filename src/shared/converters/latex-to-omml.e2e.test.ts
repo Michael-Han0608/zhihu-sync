@@ -58,4 +58,13 @@ describe('端到端 docx 公式注入验证', () => {
     const hasAccent = documentXml.includes('<m:acc') || documentXml.includes('<m:groupChr');
     expect(hasAccent).toBe(true);
   });
+
+  it('document.xml 结构对 Word 有效:无 <undefined> 包裹,oMath 直接挂在段落下', () => {
+    // 回归守卫:ImportedXmlComponent.fromXmlString 返回的无名包裹组件若被直接
+    // 注入,会序列化出 <undefined> 元素,Word 无法识别 → 公式整体空白。
+    expect(documentXml).not.toContain('<undefined');
+    expect(documentXml).not.toContain('</undefined>');
+    // 本测试用无对齐的 Paragraph 构建,oMath 应直接作为 <w:p> 的子节点
+    expect(documentXml).toMatch(/<w:p><m:oMath/);
+  });
 });

@@ -121,7 +121,13 @@ export function convertLatexToOmml(
   const omml = latexToOmmlString(latex, opts);
   if (!omml) return null;
   try {
-    return ImportedXmlComponent.fromXmlString(omml);
+    // fromXmlString 返回一个无名的文档包裹组件(rootKey 为 undefined),
+    // 真正的 <m:oMath> 是它的第一个子节点。直接返回包裹组件会序列化出一个
+    // Word 无法识别的 <undefined> 元素,导致公式整体不渲染(空白)。
+    const wrapper = ImportedXmlComponent.fromXmlString(omml) as unknown as {
+      readonly root: readonly ImportedXmlComponent[];
+    };
+    return wrapper.root[0] ?? null;
   } catch (e) {
     console.warn('OMML 注入失败:', latex, e);
     return null;

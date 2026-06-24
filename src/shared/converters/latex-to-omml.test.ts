@@ -88,6 +88,10 @@ describe('convertLatexToOmml', () => {
   it('成功公式返回非空组件', () => {
     expect(convertLatexToOmml('x=1', { display: false })).not.toBeNull();
   });
+  it('返回的组件根元素是 m:oMath(非 fromXmlString 的无名包裹)', () => {
+    const comp = convertLatexToOmml('x=1', { display: false }) as unknown as { rootKey?: string };
+    expect(comp.rootKey).toBe('m:oMath');
+  });
   it('inline 模式多行环境返回 null', () => {
     const tex = '\\begin{equation}\\begin{split} a &= b \\end{split}\\end{equation}';
     expect(convertLatexToOmml(tex, { display: false })).toBeNull();
