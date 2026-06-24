@@ -1,6 +1,8 @@
 // src/shared/converters/latex-to-omml.ts
 // LaTeX → 可注入文档的 OMML 组件
 // 依赖: temml, mathml2omml(vendored), docx
+import temml from 'temml';
+import { mml2omml } from '@/vendor/mathml2omml.min.js';
 
 export const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 
@@ -93,4 +95,19 @@ export function wrapWithBorderBox(omml: string): string {
   borderBox.appendChild(e);
   oMath.appendChild(borderBox);
   return new XMLSerializer().serializeToString(doc);
+}
+
+/** LaTeX → 最终 OMML 字符串;失败返回 null(由调用方决定回退) */
+export function latexToOmmlString(latex: string, opts: { display: boolean }): string | null {
+  const { inner, boxed } = unwrapBoxed(latex);
+  const mathml = temml.renderToString(inner, { displayMode: opts.display, throwOnError: false });
+  if (mathml.includes('temml-error')) return null;
+
+  let omml = mml2omml(mathml);
+  // 无任何渲染叶子(空 oMath)视为失败
+  if (!/<m:r[ >/]/.test(omml)) return null;
+
+  omml = fixAccents(omml);
+  if (boxed) omml = wrapWithBorderBox(omml);
+  return omml;
 }

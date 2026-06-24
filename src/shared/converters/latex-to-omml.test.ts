@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unwrapBoxed, fixAccents, wrapWithBorderBox } from '@/shared/converters/latex-to-omml';
+import { unwrapBoxed, fixAccents, wrapWithBorderBox, latexToOmmlString } from '@/shared/converters/latex-to-omml';
 
 describe('unwrapBoxed', () => {
   it('剥离整体 boxed', () => {
@@ -48,5 +48,38 @@ describe('wrapWithBorderBox', () => {
     expect(out).toContain('<m:borderBox');
     expect(out).toContain('<m:e>');
     expect(out).toContain('<m:t>x=1</m:t>');
+  });
+});
+
+describe('latexToOmmlString', () => {
+  it('保留 \\oint 的运算符(不坍缩为 Σ)', () => {
+    const out = latexToOmmlString('\\oint_C \\mathbf{A} \\cdot d \\mathbf{r}', { display: true });
+    expect(out).not.toBeNull();
+    expect(out!).toContain('m:val="∮"'); // ∮
+  });
+
+  it('保留 \\prod 的运算符', () => {
+    const out = latexToOmmlString('\\prod_{j=0}^{M-1} x_j', { display: true });
+    expect(out!).toContain('m:val="∏"'); // ∏
+  });
+
+  it('display 模式下多行 \\begin{split} 渲染为矩阵且非空', () => {
+    const tex = '\\begin{equation}\\begin{split} a &= b \\\\ &= c \\end{split}\\end{equation}';
+    const out = latexToOmmlString(tex, { display: true });
+    expect(out).not.toBeNull();
+    expect(out!).toMatch(/<m:m[ >]/); // 矩阵
+  });
+
+  it('inline 模式下多行环境产出 null(交由调用方回退)', () => {
+    const tex = '\\begin{equation}\\begin{split} a &= b \\end{split}\\end{equation}';
+    expect(latexToOmmlString(tex, { display: false })).toBeNull();
+  });
+
+  it('\\dot 产出 m:acc', () => {
+    expect(latexToOmmlString('\\dot{c}', { display: false })!).toContain('<m:acc');
+  });
+
+  it('整体 \\boxed 产出 borderBox', () => {
+    expect(latexToOmmlString('\\boxed{x=1}', { display: true })!).toContain('<m:borderBox');
   });
 });
