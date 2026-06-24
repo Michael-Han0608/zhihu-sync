@@ -1,22 +1,15 @@
 // src/shared/converters/html-to-docx.ts
 // HTML → docx Document 转换器
-// 依赖: docx, temml, mathml2omml
+// 依赖: docx
 
 import {
   Document, Packer, Paragraph, TextRun, HeadingLevel,
   ExternalHyperlink, ImageRun, Table, TableRow, TableCell,
   WidthType, BorderStyle, AlignmentType, ShadingType,
-  Math as DocxMath, MathRun as DocxMathRun,
-  MathFraction, MathSuperScript, MathSubScript, MathSubSuperScript,
-  MathRadical, MathRoundBrackets, MathSquareBrackets, MathCurlyBrackets,
-  MathSum, MathIntegral,
-  MathLimitLower, MathLimitUpper, MathFunction,
   EndnoteReferenceRun,
   LevelFormat, convertInchesToTwip,
   type IParagraphOptions,
 } from 'docx';
-import temml from 'temml';
-import { mml2omml } from '@/vendor/mathml2omml.min.js';
 
 import {
   getLatex, isMath, isInlineMath,
@@ -26,6 +19,7 @@ import {
   isLinkCard, getLinkCardInfo,
   isCatalog, isReferenceList,
 } from '@/shared/converters/zhihu-html-utils';
+import { convertLatexToOmml } from '@/shared/converters/latex-to-omml';
 
 import type { ZhihuComment } from '@/types/zhihu';
 
@@ -120,263 +114,6 @@ function calcImageSize(widthPx: number, heightPx: number): ImageDimensions {
     h = Math.round(h * ratio);
   }
   return { width: w, height: h };
-}
-
-// ============================================================
-// LaTeX → docx Math 转换
-// ============================================================
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type MathComponent = any;
-
-function convertLatexToDocxMath(latex: string): MathComponent[] | null {
-  try {
-    // Temml + mathml2omml pipeline
-    const mathml = temml.renderToString(latex);
-    const omml = mml2omml(mathml);
-    return parseOmmlToDocxMath(omml);
-  } catch (e) {
-    console.warn('LaTeX→OMML 转换失败:', latex, e);
-    return null;
-  }
-}
-
-/**
- * Parse OMML XML into docx Math component tree
- * Handles: fractions, superscripts, subscripts, radicals, delimiters, etc.
- */
-function parseOmmlToDocxMath(ommlXml: string): MathComponent[] | null {
-  try {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(ommlXml, 'text/xml');
-    if (doc.querySelector('parsererror')) return null;
-
-    // Find the m:oMath element (or m:oMathPara > m:oMath)
-    const oMath = doc.querySelector('oMath') || doc.querySelector('oMathPara oMath');
-    if (!oMath) {
-      // Try direct children
-      const root = doc.documentElement;
-      return convertOmmlChildren(root);
-    }
-    return convertOmmlChildren(oMath);
-  } catch (e) {
-    console.warn('OMML parse error:', e);
-    return null;
-  }
-}
-
-/** Get local name of an XML element, stripping namespace prefix */
-function localName(el: Element): string {
-  return el.localName || el.nodeName.replace(/^.*:/, '');
-}
-
-/** Convert children of an OMML element to docx Math components */
-function convertOmmlChildren(parent: Element): MathComponent[] | null {
-  const components: MathComponent[] = [];
-  for (const child of parent.childNodes) {
-    if (child.nodeType !== 1) continue; // element nodes only
-    const comp = convertOmmlElement(child as Element);
-    if (comp) {
-      if (Array.isArray(comp)) components.push(...comp);
-      else components.push(comp);
-    }
-  }
-  return components.length > 0 ? components : null;
-}
-
-/** Convert a single OMML element to a docx Math component */
-function convertOmmlElement(el: Element): MathComponent | MathComponent[] | null {
-  const name = localName(el);
-
-  switch (name) {
-    case 'r': return convertOmmlRun(el);        // m:r -> MathRun
-    case 'f': return convertOmmlFraction(el);    // m:f -> MathFraction
-    case 'sSup': return convertOmmlSup(el);      // m:sSup -> MathSuperScript
-    case 'sSub': return convertOmmlSub(el);      // m:sSub -> MathSubScript
-    case 'sSubSup': return convertOmmlSubSup(el);// m:sSubSup -> MathSubSuperScript
-    case 'rad': return convertOmmlRadical(el);   // m:rad -> MathRadical
-    case 'd': return convertOmmlDelimiter(el);   // m:d -> brackets/parens
-    case 'nary': return convertOmmlNary(el);     // m:nary -> sum/integral
-    case 'acc': return convertOmmlAccent(el);    // m:acc -> accent
-    case 'limLow': return convertOmmlLimLow(el); // m:limLow -> lower limit
-    case 'limUpp': return convertOmmlLimUpp(el); // m:limUpp -> upper limit
-    case 'func': return convertOmmlFunc(el);     // m:func -> function
-    case 'oMath': return convertOmmlChildren(el);
-    case 'oMathPara': return convertOmmlChildren(el);
-    // Properties elements - skip
-    case 'rPr': case 'fPr': case 'sSupPr': case 'sSubPr':
-    case 'sSubSupPr': case 'radPr': case 'dPr': case 'naryPr':
-    case 'accPr': case 'limLowPr': case 'limUppPr': case 'funcPr':
-    case 'ctrlPr':
-      return null;
-    // Container elements - recurse
-    case 'e': case 'num': case 'den': case 'sup': case 'sub':
-    case 'deg': case 'lim': case 'fName':
-      return convertOmmlChildren(el);
-    default: {
-      // Unknown element - try to extract text
-      const text = el.textContent?.trim();
-      if (text) return new DocxMathRun(text);
-      return null;
-    }
-  }
-}
-
-/** m:r -> MathRun */
-function convertOmmlRun(el: Element): MathComponent | null {
-  const tEl = findChild(el, 't');
-  const text = tEl ? tEl.textContent : el.textContent || '';
-  if (!text) return null;
-  return new DocxMathRun(text);
-}
-
-/** Helper: get children array or fallback */
-function ommlChildrenOf(el: Element, childName: string): MathComponent[] {
-  const child = findChild(el, childName);
-  return child ? convertOmmlChildren(child) || [new DocxMathRun('')] : [new DocxMathRun('')];
-}
-
-/** m:f -> MathFraction */
-function convertOmmlFraction(el: Element): MathComponent {
-  return new MathFraction({
-    numerator: ommlChildrenOf(el, 'num'),
-    denominator: ommlChildrenOf(el, 'den'),
-  });
-}
-
-/** m:sSup -> MathSuperScript */
-function convertOmmlSup(el: Element): MathComponent {
-  return new MathSuperScript({
-    children: ommlChildrenOf(el, 'e'),
-    superScript: ommlChildrenOf(el, 'sup'),
-  });
-}
-
-/** m:sSub -> MathSubScript */
-function convertOmmlSub(el: Element): MathComponent {
-  return new MathSubScript({
-    children: ommlChildrenOf(el, 'e'),
-    subScript: ommlChildrenOf(el, 'sub'),
-  });
-}
-
-/** m:sSubSup -> MathSubSuperScript */
-function convertOmmlSubSup(el: Element): MathComponent {
-  return new MathSubSuperScript({
-    children: ommlChildrenOf(el, 'e'),
-    subScript: ommlChildrenOf(el, 'sub'),
-    superScript: ommlChildrenOf(el, 'sup'),
-  });
-}
-
-/** m:rad -> MathRadical */
-function convertOmmlRadical(el: Element): MathComponent {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const opts: any = { children: ommlChildrenOf(el, 'e') };
-  const deg = findChild(el, 'deg');
-  if (deg) {
-    const degChildren = convertOmmlChildren(deg);
-    if (degChildren) opts.degree = degChildren;
-  }
-  return new MathRadical(opts);
-}
-
-/** m:d -> Delimiters (parentheses, brackets, braces) */
-function convertOmmlDelimiter(el: Element): MathComponent {
-  const dPr = findChild(el, 'dPr');
-  let begChar = '(', endChar = ')';
-  if (dPr) {
-    const begChr = findChild(dPr, 'begChr');
-    const endChr = findChild(dPr, 'endChr');
-    if (begChr) begChar = begChr.getAttribute('m:val') || begChr.getAttribute('val') || '(';
-    if (endChr) endChar = endChr.getAttribute('m:val') || endChr.getAttribute('val') || ')';
-  }
-  const eChildren: MathComponent[] = [];
-  for (const child of el.childNodes) {
-    if (child.nodeType === 1 && localName(child as Element) === 'e') {
-      const converted = convertOmmlChildren(child as Element);
-      if (converted) eChildren.push(...converted);
-    }
-  }
-  const children = eChildren.length > 0 ? eChildren : [new DocxMathRun('')];
-
-  if (begChar === '[' && endChar === ']') return new MathSquareBrackets({ children });
-  if (begChar === '{' && endChar === '}') return new MathCurlyBrackets({ children });
-  return new MathRoundBrackets({ children });
-}
-
-/** m:nary -> Sum/Integral */
-function convertOmmlNary(el: Element): MathComponent {
-  const naryPr = findChild(el, 'naryPr');
-  let chr: string | null = null;
-  if (naryPr) {
-    const chrEl = findChild(naryPr, 'chr');
-    if (chrEl) chr = chrEl.getAttribute('m:val') || chrEl.getAttribute('val');
-  }
-
-  const sub = findChild(el, 'sub');
-  const sup = findChild(el, 'sup');
-  const subChildren = sub ? convertOmmlChildren(sub) || [new DocxMathRun('')] : undefined;
-  const supChildren = sup ? convertOmmlChildren(sup) || [new DocxMathRun('')] : undefined;
-  const baseChildren = ommlChildrenOf(el, 'e');
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const opts: any = { children: baseChildren };
-  if (subChildren) opts.subScript = subChildren;
-  if (supChildren) opts.superScript = supChildren;
-
-  if (chr && (chr === '\u222B' || chr === '\u222C' || chr === '\u222D')) {
-    return new MathIntegral(opts);
-  }
-  return new MathSum(opts);
-}
-
-/** m:acc -> Accent (hat, bar, etc.) */
-function convertOmmlAccent(el: Element): MathComponent {
-  const accPr = findChild(el, 'accPr');
-  let chr = '\u0302';
-  if (accPr) {
-    const chrEl = findChild(accPr, 'chr');
-    if (chrEl) chr = chrEl.getAttribute('m:val') || chrEl.getAttribute('val') || chr;
-  }
-  // MathAccentCharacter was removed in docx v9; fallback to MathRun with children
-  const children = ommlChildrenOf(el, 'e');
-  if (children.length > 0) {
-    return children[0];
-  }
-  return new DocxMathRun(chr);
-}
-
-/** m:limLow -> Lower limit */
-function convertOmmlLimLow(el: Element): MathComponent {
-  return new MathLimitLower({
-    children: ommlChildrenOf(el, 'e'),
-    limit: ommlChildrenOf(el, 'lim'),
-  });
-}
-
-/** m:limUpp -> Upper limit */
-function convertOmmlLimUpp(el: Element): MathComponent {
-  return new MathLimitUpper({
-    children: ommlChildrenOf(el, 'e'),
-    limit: ommlChildrenOf(el, 'lim'),
-  });
-}
-
-/** m:func -> Math function (sin, cos, etc.) */
-function convertOmmlFunc(el: Element): MathComponent {
-  return new MathFunction({
-    name: ommlChildrenOf(el, 'fName'),
-    children: ommlChildrenOf(el, 'e'),
-  });
-}
-
-/** Find first child element by local name */
-function findChild(parent: Element, name: string): Element | null {
-  for (const child of parent.childNodes) {
-    if (child.nodeType === 1 && localName(child as Element) === name) return child as Element;
-  }
-  return null;
 }
 
 // ============================================================
@@ -478,9 +215,9 @@ function collectInlineElements(node: Node, style: InlineStyle, ctx: ConvertConte
   if (isMath(el)) {
     const latex = getLatex(el);
     if (latex) {
-      const mathRuns = convertLatexToDocxMath(latex);
-      if (mathRuns) {
-        runs.push(new DocxMath({ children: mathRuns }));
+      const omml = convertLatexToOmml(latex, { display: false });
+      if (omml) {
+        runs.push(omml);
       } else {
         runs.push(new TextRun({ text: `$${latex}$`, font: { name: 'Consolas' } }));
       }
@@ -581,9 +318,9 @@ function convertBlockElement(element: Element, ctx: ConvertContext, listLevel: n
   if (isMath(element)) {
     const latex = getLatex(element);
     if (latex) {
-      const mathRuns = convertLatexToDocxMath(latex);
-      if (mathRuns) {
-        blocks.push(new Paragraph({ children: [new DocxMath({ children: mathRuns })], alignment: AlignmentType.CENTER }));
+      const omml = convertLatexToOmml(latex, { display: true });
+      if (omml) {
+        blocks.push(new Paragraph({ children: [omml], alignment: AlignmentType.CENTER }));
       } else {
         blocks.push(new Paragraph({ children: [new TextRun({ text: `$$${latex}$$`, font: { name: 'Consolas' } })], alignment: AlignmentType.CENTER }));
       }
