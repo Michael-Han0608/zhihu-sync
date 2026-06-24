@@ -82,3 +82,15 @@ export function fixAccents(omml: string): string {
   }
   return new XMLSerializer().serializeToString(doc);
 }
+
+/** 把 oMath 的内容整体包进 borderBox(用于整体 \boxed) */
+export function wrapWithBorderBox(omml: string): string {
+  const doc = new DOMParser().parseFromString(omml, 'application/xml');
+  const oMath = doc.getElementsByTagName('m:oMath')[0] ?? doc.documentElement;
+  const borderBox = doc.createElementNS(M_NS, 'm:borderBox');
+  const e = doc.createElementNS(M_NS, 'm:e');
+  while (oMath.firstChild) e.appendChild(oMath.firstChild);
+  borderBox.appendChild(e);
+  oMath.appendChild(borderBox);
+  return new XMLSerializer().serializeToString(doc);
+}

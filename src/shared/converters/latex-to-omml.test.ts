@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { unwrapBoxed, fixAccents } from '@/shared/converters/latex-to-omml';
+import { unwrapBoxed, fixAccents, wrapWithBorderBox } from '@/shared/converters/latex-to-omml';
 
 describe('unwrapBoxed', () => {
   it('剥离整体 boxed', () => {
@@ -36,5 +36,17 @@ describe('fixAccents', () => {
       '<m:limUpp><m:e><m:r><m:t>x</m:t></m:r></m:e>' +
       '<m:lim><m:r><m:t>n</m:t></m:r></m:lim></m:limUpp></m:oMath>';
     expect(fixAccents(lim)).toContain('<m:limUpp');
+  });
+});
+
+describe('wrapWithBorderBox', () => {
+  it('用 borderBox 包裹 oMath 内容', () => {
+    const omml =
+      '<m:oMath xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math">' +
+      '<m:r><m:t>x=1</m:t></m:r></m:oMath>';
+    const out = wrapWithBorderBox(omml);
+    expect(out).toContain('<m:borderBox');
+    expect(out).toContain('<m:e>');
+    expect(out).toContain('<m:t>x=1</m:t>');
   });
 });
