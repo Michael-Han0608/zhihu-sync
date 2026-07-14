@@ -168,7 +168,8 @@ function extractFromDOM(pageInfo: PageInfo, url: string): ExtractedContent | nul
     case 'answer': {
       const titleEl = document.querySelector('.QuestionHeader-title');
       const contentEl = document.querySelector('.RichContent-inner');
-      const authorEl = document.querySelector('.AuthorInfo-name .UserLink-link');
+      const answerContainer = contentEl?.closest('.ContentItem, .List-item, .AnswerItem');
+      const authorEl = answerContainer?.querySelector('.AuthorInfo-name .UserLink-link, .AuthorInfo-name');
       return {
         id,
         type, url,
