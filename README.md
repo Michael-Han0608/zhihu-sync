@@ -5,6 +5,9 @@
 > 无需逐篇手动导出；内容可直接用于 Obsidian、Typora、Logseq、VS Code 等工具，
 > 也可导入 Notion，并随时交给 Agent 检索、分析与整理。
 
+[![npm version](https://img.shields.io/npm/v/zhihu-sync?label=npm)](https://www.npmjs.com/package/zhihu-sync)
+[![CI](https://github.com/Michael-Han0608/zhihu-sync/actions/workflows/ci.yml/badge.svg)](https://github.com/Michael-Han0608/zhihu-sync/actions/workflows/ci.yml)
+
 基于 [chouheiwa/download-zhihu](https://github.com/chouheiwa/download-zhihu)
 二次开发的浏览器导出扩展与本机增量归档工具。它包含两种使用方式：
 
@@ -278,7 +281,8 @@ src/
 ## 发布流程(维护者)
 
 当前 Release 默认标记为 Developer Preview，并附带扩展 ZIP、完整源码快照、npm tarball
-和 `SHA256SUMS`。npm 预览版使用 `next` dist-tag，不占用稳定版 `latest`。
+和 `SHA256SUMS`。npm 预览版以 `next` dist-tag 发布；首次发布时 npm 同时将唯一版本设为
+`latest`，因此在稳定版发布前仍建议显式安装 `zhihu-sync@next`。
 
 首次 npm 发布需要维护者在本机登录 npm，审核 `npm pack --dry-run` 后人工执行
 `npm publish --tag next --access public`。包记录建立后，在 npmjs.com 将
