@@ -284,16 +284,16 @@ src/
 和 `SHA256SUMS`。npm 预览版以 `next` dist-tag 发布；首次发布时 npm 同时将唯一版本设为
 `latest`，因此在稳定版发布前仍建议显式安装 `zhihu-sync@next`。
 
-首次 npm 发布需要维护者在本机登录 npm，审核 `npm pack --dry-run` 后人工执行
-`npm publish --tag next --access public`。包记录建立后，在 npmjs.com 将
-`Michael-Han0608/zhihu-sync` 的 `release.yml` 配置为 Trusted Publisher，并把仓库变量
-`NPM_PUBLISH_ENABLED` 设为 `true`，后续 tag 才会通过 OIDC 自动同步到 npm；仓库不保存长期 npm Token。
+首次 npm 包已经人工发布并完成安装验证。后续版本由 npm Trusted Publisher 仅授权
+`Michael-Han0608/zhihu-sync` 的 `release.yml`，在仓库变量 `NPM_PUBLISH_ENABLED=true`
+时通过 OIDC 自动发布到 `next`；仓库不保存长期 npm Token。若要暂停 npm 自动发布，
+将该变量设为 `false` 即可，不影响 GitHub Release。
 
 1. 在下方「更新日志」新增 `### vX.Y.Z` 小节并写明本次变更（CI 会直接复用为 GitHub Release 正文；缺失则发布失败）。
 2. 提交改动:`git commit -am "docs: vX.Y.Z 更新日志"`。
 3. 升版本并打 tag(三选一):`npm version patch` / `npm version minor` / `npm version major` —— 自动 bump `package.json`、提交并打好 `vX.Y.Z` tag(`src/manifest.ts` 版本由 `package.json` 自动派生,无需手改)。
 4. 推送:`git push --follow-tags`。
-5. 其余交给 CI：校验版本 == tag → 测试构建 → 生成四类附件与校验文件 → 发布 GitHub Pre-release → 可选同步 npm `next`。浏览器商店发布不在当前工作流中。
+5. 其余交给 CI：校验版本 == tag → 测试构建 → 生成四类附件与校验文件 → 发布 GitHub Pre-release → 通过 OIDC 同步 npm `next`。浏览器商店发布不在当前工作流中。
 
 ## 更新日志
 
