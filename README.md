@@ -20,13 +20,14 @@
 
 ## 平台支持
 
-| 组件 | macOS | Windows / Linux |
-|------|-------|-----------------|
-| 浏览器导出扩展 | 可构建、可加载 | Chromium 浏览器原则上可用，尚未完整回归 |
-| `zhihu-sync` 自动归档 | 已在 Apple Silicon + Edge + Node.js 22 验证 | 尚未适配 |
+| 组件 | macOS | Windows | Linux |
+|------|-------|---------|-------|
+| 浏览器导出扩展 | 可构建、可加载 | 可构建、可加载 | 可构建、可加载 |
+| `zhihu-sync` 自动归档 | 已在 Apple Silicon + Edge + Node.js 22 验证 | 已在 Windows + Edge + Node.js 22+ 验证 | 尚未适配 |
 
-Windows 用户目前可以使用浏览器导出功能，但不能直接使用 `login`、`sync`、`votes`
-及每日定时同步。欢迎提交跨平台适配贡献。
+Windows 自动归档使用专用 Edge 配置、Windows Native Messaging 注册表和 Task Scheduler，
+可以直接使用 `setup`、`login`、`sync`、`votes` 及每日定时同步。首次使用前请先执行
+`sync --dry-run`，并备份目标知识库目录。
 
 > [!WARNING]
 > 自动归档系统目前是 **Developer Preview**。安装、升级和跨机器迁移流程仍在完善；
@@ -66,7 +67,7 @@ Windows 用户目前可以使用浏览器导出功能，但不能直接使用 `l
 
 ### npm 安装自动归档 CLI（Developer Preview）
 
-当前预览版要求 macOS、Microsoft Edge 和 Node.js 22：
+当前预览版要求 macOS 或 Windows、Microsoft Edge 和 Node.js 22 或更高版本：
 
 ```bash
 npm install --global zhihu-sync@next
@@ -74,8 +75,8 @@ zhihu-sync setup --vault "/absolute/path/to/your/knowledge-base/zhihu"
 ```
 
 `setup` 会使用当前 Node.js 的绝对路径注册 Native Messaging Host，并创建最小配置；
-它不会静默覆盖已有配置。随后编辑 `~/.config/zhihu-sync/config.json`，补充需要同步的
-收藏夹白名单，再执行：
+它不会静默覆盖已有配置。macOS 配置位于 `~/.config/zhihu-sync/config.json`，Windows
+配置位于 `%APPDATA%\zhihu-sync\config.json`。随后补充需要同步的收藏夹白名单，再执行：
 
 ```bash
 zhihu-sync doctor
@@ -118,10 +119,26 @@ node dist-cli/zhihu-sync.mjs setup --vault "/absolute/path/to/your/knowledge-bas
 4. 开启右上角 **开发者模式**
 5. 点击 **加载已解压的扩展程序**，选择 `dist/` 目录
 
-### 本机增量归档配置（macOS）
+### 本机增量归档配置（macOS / Windows）
 
 增量归档当前面向熟悉命令行的用户，要求 Microsoft Edge、Node.js 22 和一个本地
-Markdown 知识库目录。`setup --vault` 会生成最小配置；也可以手工复制示例：
+Markdown 知识库目录。`setup --vault` 会生成最小配置；Windows 用户请在 PowerShell
+中使用 Windows 路径，例如：
+
+```bash
+npm install --global zhihu-sync@next
+zhihu-sync setup --vault "C:\Users\you\Documents\ObsidianVault\zhihu"
+zhihu-sync login
+zhihu-sync sync --dry-run
+zhihu-sync schedule install --hour 4 --minute 30
+```
+
+Windows 的登录和同步会复用 `%LOCALAPPDATA%\Zhihu Sync\Edge`，不会使用或关闭日常
+Edge 窗口。运行同步前请关闭遗留的 Zhihu Sync 专用窗口；普通 Edge 窗口不受影响。
+Windows 收藏夹目录会自动替换文件系统禁用字符、清理末尾点和空格，并为 `CON`、
+`PRN`、`AUX`、`NUL`、`COM1`-`COM9`、`LPT1`-`LPT9` 等保留设备名加前缀，以保证归档可写。
+
+macOS 用户仍可手工复制示例：
 
 ```bash
 mkdir -p ~/.config/zhihu-sync
@@ -303,7 +320,8 @@ src/
 - 支持白名单收藏夹与“赞同的回答”只增不减归档。
 - 正文更新时保存旧版本；评论改为显式 `--comments`、覆盖保存且不保留版本。
 - 新增断点续传、磁盘空间安全线、运行超时、只读预检和每日 macOS LaunchAgent。
-- 当前自动归档仅在 macOS Apple Silicon、Microsoft Edge 和 Node.js 22 上验证。
+- Windows 适配使用专用 Edge 配置、Native Messaging 注册表和 Windows Task Scheduler，
+  并已完成真实 `dry-run` 与临时 vault 写入 smoke test。
 
 ### v3.1.0
 

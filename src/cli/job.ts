@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { SyncMode } from '../shared/native-messages';
+import { DEFAULT_JOBS_DIR } from './runtime-paths';
 
-export const DEFAULT_JOBS_DIR = join(homedir(), '.config', 'zhihu-sync', 'jobs');
+export { DEFAULT_JOBS_DIR } from './runtime-paths';
 
 export interface SyncJobRequest {
   schemaVersion: 1;

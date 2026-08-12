@@ -4,7 +4,7 @@ import { DEFAULT_CONFIG_PATH, loadConfig } from './config';
 import { formatDoctorChecks, runDoctor } from './doctor';
 import { createNativeHostManifest, defaultNativeManifestPath } from './native-manifest';
 import { EXTENSION_ID } from '../shared/extension-identity';
-import { DEFAULT_EDGE_USER_DATA_DIR, nativeHostExecutable, projectRoot } from './runtime-paths';
+import { DEFAULT_EDGE_USER_DATA_DIR, edgeExecutablePath, nativeLauncherPath, projectRoot } from './runtime-paths';
 import { runSyncCommand } from './sync-command';
 import { installSchedule, scheduleStatus, uninstallSchedule } from './schedule';
 import { spawn } from 'node:child_process';
@@ -143,7 +143,8 @@ async function main(): Promise<void> {
   }
 
   if (args.command === 'login') {
-    const edge = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge';
+    const edge = edgeExecutablePath();
+    if (!edge) throw new Error('未找到 Microsoft Edge，请先安装 Edge');
     const child = spawn(edge, [
       `--user-data-dir=${DEFAULT_EDGE_USER_DATA_DIR}`,
       '--no-first-run',
@@ -220,7 +221,7 @@ async function main(): Promise<void> {
   if (args.command === 'native-manifest') {
     const extensionId = flagString(args, 'extension-id') || EXTENSION_ID;
     const hostPath = flagString(args, 'host-path')
-      || nativeHostExecutable();
+      || nativeLauncherPath();
     const edgeUserDataDir = flagString(args, 'edge-user-data-dir');
     const manifest = createNativeHostManifest(extensionId, hostPath);
     process.stdout.write(`${JSON.stringify({

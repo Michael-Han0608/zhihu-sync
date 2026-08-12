@@ -1,12 +1,10 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { access, readFile, statfs, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createSyncJob, markJobFailed, readJobStatus, type SyncJobStatus } from './job';
-import { DEFAULT_EDGE_USER_DATA_DIR, projectRoot } from './runtime-paths';
+import { DEFAULT_EDGE_USER_DATA_DIR, edgeExecutablePath, projectRoot } from './runtime-paths';
 import { EXTENSION_ID } from '../shared/extension-identity';
 import type { SyncMode } from '../shared/native-messages';
-
-const EDGE_EXECUTABLE = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge';
 
 export interface RunSyncOptions {
   configPath: string;
@@ -59,17 +57,40 @@ function processExists(pid: number): boolean {
   }
 }
 
-async function waitForDevToolsPort(): Promise<{ port: number; browserPath: string }> {
+async function waitForDevToolsPort(child: ChildProcess): Promise<{ port: number; browserPath: string }> {
   const path = join(DEFAULT_EDGE_USER_DATA_DIR, 'DevToolsActivePort');
-  for (let attempt = 0; attempt < 100; attempt++) {
-    try {
-      const [portLine, browserPath] = (await readFile(path, 'utf8')).trim().split(/\r?\n/);
-      const port = Number(portLine);
-      if (Number.isInteger(port) && port > 0 && browserPath) return { port, browserPath };
-    } catch { /* Edge 尚未写入端口文件 */ }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+  let rejectExit: ((error: Error) => void) | undefined;
+  const childExit = new Promise<never>((_, reject) => { rejectExit = reject; });
+  const onError = (error: Error) => rejectExit?.(new Error(`专用 Edge 启动失败: ${error.message}`));
+  const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+    const suffix = signal ? `signal=${signal}` : `code=${code ?? 'unknown'}`;
+    rejectExit?.(new Error(`专用 Edge 进程提前退出（${suffix}）；请先关闭遗留的 Zhihu Sync 窗口后重试`));
+  };
+  child.once('error', onError);
+  child.once('exit', onExit);
+  try {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      try {
+        const [portLine, browserPath] = (await readFile(path, 'utf8')).trim().split(/\r?\n/);
+        const port = Number(portLine);
+        if (Number.isInteger(port) && port > 0 && browserPath) return { port, browserPath };
+      } catch { /* Edge 尚未写入端口文件 */ }
+      await Promise.race([
+        new Promise((resolve) => setTimeout(resolve, 100)),
+        childExit,
+      ]);
+    }
+  } finally {
+    child.off('error', onError);
+    child.off('exit', onExit);
   }
   throw new Error('专用 Edge 启动超时；请先关闭遗留的 Zhihu Sync 窗口后重试');
+}
+
+async function removeDevToolsPort(path: string): Promise<void> {
+  await unlink(path).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== 'ENOENT') throw error;
+  });
 }
 
 function cdpCommand(
@@ -108,9 +129,7 @@ function cdpCommand(
 async function launchEdge(jobId: string, showBrowser: boolean): Promise<EdgeController> {
   const extensionDir = join(projectRoot(), 'dist');
   const devToolsPortPath = join(DEFAULT_EDGE_USER_DATA_DIR, 'DevToolsActivePort');
-  await unlink(devToolsPortPath).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== 'ENOENT') throw error;
-  });
+  await removeDevToolsPort(devToolsPortPath);
   const browserArgs = [
     `--user-data-dir=${DEFAULT_EDGE_USER_DATA_DIR}`,
     '--no-first-run',
@@ -122,10 +141,16 @@ async function launchEdge(jobId: string, showBrowser: boolean): Promise<EdgeCont
   ];
   if (!showBrowser) browserArgs.push('--headless=new');
   browserArgs.push('https://www.zhihu.com/');
-  const child = spawn(EDGE_EXECUTABLE, browserArgs, { detached: true, stdio: 'ignore' });
+  const edgeExecutable = edgeExecutablePath();
+  if (!edgeExecutable) throw new Error('未找到 Microsoft Edge，请先安装 Edge');
+  const child = spawn(edgeExecutable, browserArgs, {
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: !showBrowser,
+  });
   child.unref();
   try {
-    const { port, browserPath } = await waitForDevToolsPort();
+    const { port, browserPath } = await waitForDevToolsPort(child);
     const browserSocket = `ws://127.0.0.1:${port}${browserPath}`;
     await cdpCommand(browserSocket, 'Extensions.loadUnpacked', { path: extensionDir });
     const pages = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json() as Array<{
@@ -142,21 +167,26 @@ async function launchEdge(jobId: string, showBrowser: boolean): Promise<EdgeCont
     if (!response.ok) throw new Error(`无法打开同步页面: HTTP ${response.status}`);
     return {
       close: async () => {
-        await cdpCommand(browserSocket, 'Browser.close').catch(() => undefined);
-        for (let attempt = 0; attempt < 20 && processExists(child.pid!); attempt++) {
-          await new Promise((resolve) => setTimeout(resolve, 100));
+        try {
+          await cdpCommand(browserSocket, 'Browser.close').catch(() => undefined);
+          for (let attempt = 0; attempt < 20 && processExists(child.pid!); attempt++) {
+            await new Promise((resolve) => setTimeout(resolve, 100));
+          }
+          if (child.pid && processExists(child.pid)) child.kill('SIGTERM');
+        } finally {
+          await removeDevToolsPort(devToolsPortPath);
         }
-        if (child.pid && processExists(child.pid)) child.kill('SIGTERM');
       },
     };
   } catch (error) {
     if (child.pid && processExists(child.pid)) child.kill('SIGTERM');
+    await removeDevToolsPort(devToolsPortPath);
     throw error;
   }
 }
 
 export async function runSyncCommand(options: RunSyncOptions): Promise<SyncJobStatus> {
-  await access(EDGE_EXECUTABLE);
+  if (!edgeExecutablePath()) throw new Error('未找到 Microsoft Edge，请先安装 Edge');
   const configRaw = JSON.parse(await readFile(options.configPath, 'utf8')) as { vaultRoot?: string };
   if (!configRaw.vaultRoot) throw new Error(`配置缺少 vaultRoot: ${options.configPath}`);
   const disk = await statfs(configRaw.vaultRoot);

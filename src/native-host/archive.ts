@@ -28,14 +28,64 @@ export interface CollectionArchiveContext {
   actionById: Map<string, SyncAction>;
 }
 
+const WINDOWS_INVALID_NAME_CHARS = /[<>:"/\\|?*\u0000-\u001F]/g;
+const WINDOWS_RESERVED_DEVICE_NAMES = new Set([
+  'CON', 'PRN', 'AUX', 'NUL', 'CLOCK$',
+  ...Array.from({ length: 9 }, (_, index) => `COM${index + 1}`),
+  ...Array.from({ length: 9 }, (_, index) => `LPT${index + 1}`),
+]);
+
+function isTraversalSegment(segment: string): boolean {
+  const trimmed = segment.replace(/\s+$/g, '');
+  return trimmed === '..';
+}
+
+export function sanitizeWindowsDirectorySegment(segment: string): string {
+  const sanitized = segment
+    .replace(WINDOWS_INVALID_NAME_CHARS, '_')
+    .replace(/[. ]+$/g, '')
+    .trim()
+    .slice(0, 100)
+    .replace(/[. ]+$/g, '');
+  if (!sanitized || sanitized === '.' || sanitized === '..') return '未命名收藏夹';
+
+  const deviceName = sanitized.split('.')[0].replace(/[. ]+$/g, '').toUpperCase();
+  return WINDOWS_RESERVED_DEVICE_NAMES.has(deviceName)
+    ? `_${sanitized}`
+    : sanitized;
+}
+
+/**
+ * A collection name is a single directory name, while an explicit outputDir
+ * may intentionally contain relative nested directories.
+ */
+export function sanitizeCollectionDirectoryName(name: string): string {
+  return process.platform === 'win32' ? sanitizeWindowsDirectorySegment(name) : name;
+}
+
+export function sanitizeCollectionOutputDir(outputDir: string): string {
+  if (process.platform !== 'win32') return outputDir;
+  return outputDir
+    .split(/[\\/]+/)
+    .filter((segment) => segment && segment !== '.')
+    .map(sanitizeWindowsDirectorySegment)
+    .join('\\');
+}
+
 function safeCollectionDir(config: SyncConfig, collection: CollectionConfig): string {
-  const candidate = collection.outputDir || collection.name;
-  if (isAbsolute(candidate) || normalize(candidate).split('/').includes('..')) {
-    throw new Error(`收藏夹 outputDir 不安全: ${candidate}`);
+  const rawCandidate = collection.outputDir || collection.name;
+  if (
+    isAbsolute(rawCandidate)
+    || (collection.outputDir && rawCandidate.split(/[\\/]/).some(isTraversalSegment))
+  ) {
+    throw new Error(`收藏夹 outputDir 不安全: ${rawCandidate}`);
   }
+  const candidate = collection.outputDir
+    ? sanitizeCollectionOutputDir(rawCandidate)
+    : sanitizeCollectionDirectoryName(rawCandidate);
   const output = join(config.vaultRoot, candidate);
   const rel = relative(config.vaultRoot, output);
-  if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error(`收藏夹路径越界: ${candidate}`);
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error(`收藏夹路径越界: ${rawCandidate}`);
   return output;
 }
 

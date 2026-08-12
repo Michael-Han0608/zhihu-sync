@@ -4,7 +4,14 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { SyncConfig } from '../cli/types';
 import type { CatalogItem } from '../shared/native-messages';
-import { createArchiveContext, planCatalog, writeContent } from './archive';
+import {
+  createArchiveContext,
+  planCatalog,
+  sanitizeCollectionDirectoryName,
+  sanitizeCollectionOutputDir,
+  sanitizeWindowsDirectorySegment,
+  writeContent,
+} from './archive';
 
 const roots: string[] = [];
 
@@ -58,6 +65,36 @@ async function fixture(): Promise<{ root: string; config: SyncConfig; articles: 
 }
 
 describe('append-only archive', () => {
+  it('sanitizes Windows-invalid collection directory segments', () => {
+    expect(sanitizeWindowsDirectorySegment('收藏: ?*')).toBe('收藏_ __');
+    expect(sanitizeWindowsDirectorySegment('尾部名称. ')).toBe('尾部名称');
+    expect(sanitizeWindowsDirectorySegment('CON.txt')).toBe('_CON.txt');
+    expect(sanitizeWindowsDirectorySegment('CON .txt')).toBe('_CON .txt');
+    expect(sanitizeWindowsDirectorySegment('LPT1')).toBe('_LPT1');
+    expect(sanitizeWindowsDirectorySegment('LPT1. ')).toBe('_LPT1');
+    expect(sanitizeWindowsDirectorySegment('...')).toBe('未命名收藏夹');
+  });
+
+  it('sanitizes each Windows outputDir segment without flattening nesting', () => {
+    expect(sanitizeCollectionOutputDir('父目录/子:目录. ')).toBe('父目录\\子_目录');
+  });
+
+  it('keeps collection names unchanged outside Windows', () => {
+    if (process.platform === 'win32') return;
+    expect(sanitizeCollectionDirectoryName('收藏: ?*')).toBe('收藏: ?*');
+    expect(sanitizeCollectionOutputDir('父目录/子:目录. ')).toBe('父目录/子:目录. ');
+  });
+
+  it.skipIf(process.platform !== 'win32')('creates a safe Windows collection directory', async () => {
+    const data = await fixture();
+    const context = await createArchiveContext(data.config, {
+      id: '123',
+      name: '收藏夹: CON. ',
+    });
+    expect(context.collectionDir).toBe(join(data.root, '收藏夹_ CON'));
+    await mkdir(context.articlesDir, { recursive: true });
+  });
+
   it('按分钟比较 updated_time，并保留本地独有内容', async () => {
     const data = await fixture();
     const context = await createArchiveContext(data.config, data.config.collections[0]);
@@ -90,6 +127,15 @@ describe('append-only archive', () => {
     });
     expect(result.actions).toEqual([{ id: 'a2', action: 'new' }]);
     expect(result.localOnlyCount).toBe(0);
+  });
+
+  it('rejects Windows-style traversal in collection outputDir', async () => {
+    const data = await fixture();
+    await expect(createArchiveContext(data.config, {
+      id: '123',
+      name: 'Windows path safety',
+      outputDir: '..\\outside',
+    })).rejects.toThrow('outputDir');
   });
 
   it('更新正文前保存旧版本，评论覆盖且进度不重复', async () => {

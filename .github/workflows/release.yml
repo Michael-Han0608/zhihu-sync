@@ -83,7 +83,7 @@ jobs:
           set -e
           {
             node scripts/extract-changelog.mjs "${{ steps.version.outputs.VERSION }}" README.md
-            printf '\n\n> **Developer Preview：** 自动归档 CLI 当前仅在 macOS Apple Silicon + Microsoft Edge + Node.js 22 上验证。\n'
+            printf '\n\n> **Developer Preview：** 自动归档 CLI 已在 macOS 和 Windows + Microsoft Edge + Node.js 22+ 上验证；Linux 自动归档尚未适配。\n'
             printf '\n## Release 附件\n\n'
             printf -- '- `${{ steps.package.outputs.EXTENSION_ZIP }}`：可直接加载的浏览器扩展成品。\n'
             printf -- '- `${{ steps.package.outputs.SOURCE_ARCHIVE }}`：完整自动归档系统源码快照。\n'

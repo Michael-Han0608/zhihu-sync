@@ -2,9 +2,9 @@ import { access } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { pathExists } from './config';
 import { EXTENSION_ID } from '../shared/extension-identity';
-import { extensionManifestPath } from './runtime-paths';
-import { nativeHostExecutable } from './runtime-paths';
+import { edgeExecutablePath, extensionManifestPath, IS_WINDOWS, nativeHostExecutable, nativeLauncherPath } from './runtime-paths';
 import { defaultNativeManifestPath } from './native-manifest';
+import { isWindowsNativeHostRegistered } from './native-registration';
 
 export interface DoctorCheck {
   name: string;
@@ -22,7 +22,7 @@ async function canRead(path: string): Promise<boolean> {
 }
 
 export async function runDoctor(vaultRoot?: string, configPath?: string): Promise<DoctorCheck[]> {
-  const edgePath = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge';
+  const edgePath = edgeExecutablePath();
   const checks: DoctorCheck[] = [
     {
       name: 'Node.js',
@@ -36,8 +36,8 @@ export async function runDoctor(vaultRoot?: string, configPath?: string): Promis
     },
     {
       name: 'Microsoft Edge',
-      ok: await pathExists(edgePath),
-      detail: edgePath,
+      ok: Boolean(edgePath),
+      detail: edgePath || '未找到 Microsoft Edge 可执行文件',
     },
   ];
 
@@ -64,15 +64,27 @@ export async function runDoctor(vaultRoot?: string, configPath?: string): Promis
     detail: extensionDist,
   });
   checks.push({
-    name: 'Native host 可执行文件',
+    name: 'Native host 构建产物',
     ok: await pathExists(nativeHostExecutable()),
     detail: nativeHostExecutable(),
+  });
+  checks.push({
+    name: 'Native host 启动器',
+    ok: await pathExists(nativeLauncherPath()),
+    detail: nativeLauncherPath(),
   });
   checks.push({
     name: 'Native Messaging manifest',
     ok: await canRead(defaultNativeManifestPath()),
     detail: defaultNativeManifestPath(),
   });
+  if (IS_WINDOWS) {
+    checks.push({
+      name: 'Native Messaging 注册表',
+      ok: await isWindowsNativeHostRegistered(defaultNativeManifestPath()),
+      detail: 'HKCU\\Software\\Microsoft\\Edge\\NativeMessagingHosts\\com.yonghan.zhihu_sync',
+    });
+  }
 
   return checks;
 }

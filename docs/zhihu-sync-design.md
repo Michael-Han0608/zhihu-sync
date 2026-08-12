@@ -14,7 +14,7 @@
 2. `sync` 新增文章或回答；`updated_time` 变化时先保存旧正文，再原子覆盖主文件。
 3. `--comments` 仅对本次新增或更新的条目抓取评论，评论文件原子覆盖、不保留历史版本。
 4. `calibrate --dry-run` 只读比对旧 `export-progress-{id}.json` 与实际 Markdown Front Matter。
-5. macOS LaunchAgent 每天 04:30 运行一次无评论同步。
+5. macOS 使用 LaunchAgent、Windows 使用 Task Scheduler，每天运行一次无评论同步。
 
 ## 安全边界
 
@@ -25,6 +25,8 @@
 - 本地存在而远端目录没有的内容一律保留，绝不据此删除文件。
 - 只处理文章和回答；付费内容与其他类型默认跳过。
 - 图片下载失败时保留远端图片链接，不以空的本地链接污染正文。
+- Windows 收藏夹目录名按 Windows 文件系统规则安全化；非法字符替换为 `_`，尾部点/空格
+  会被清理，保留设备名会加前缀，显式 `outputDir` 的相对嵌套目录逐段处理。
 
 ## 使用
 
@@ -55,10 +57,16 @@ zhihu-sync schedule status         # 查看每日任务
 本机归档扩展使用固定公开密钥，开发 ID 为
 `epeaegmdchjfdoiibjojilapfeobibog`。该公开密钥不包含任何账号或签名凭据。
 
-专用 Edge 数据目录默认为
-`~/Library/Application Support/Zhihu Sync/Edge`，Native Messaging manifest 放在该数据目录的
-`NativeMessagingHosts/` 子目录，不污染日常 Edge 配置。
+专用 Edge 数据目录默认为 macOS 的
+`~/Library/Application Support/Zhihu Sync/Edge`，Windows 的
+`%LOCALAPPDATA%\Zhihu Sync\Edge`；两者都不污染日常 Edge 配置。
 
-当前自动归档 CLI、Native Messaging 注册和定时任务只在 macOS（Apple Silicon、
-Microsoft Edge、Node.js 22）上验证。浏览器扩展本体可以在 Chromium 系浏览器中构建和加载，
-Windows 自动归档支持尚未完成。
+macOS Native Messaging manifest 放在专用 Edge 数据目录的
+`NativeMessagingHosts/` 子目录。Windows manifest 放在
+`%APPDATA%\zhihu-sync\native-manifest.json`，并通过当前用户注册表
+`HKCU\Software\Microsoft\Edge\NativeMessagingHosts\com.yonghan.zhihu_sync`
+注册，因此不要求管理员权限。Windows 定时任务名称为 `Zhihu Sync`。
+
+自动归档 CLI、Native Messaging 注册和定时任务已在 Windows + Microsoft Edge +
+Node.js 22+ 上完成真实 smoke 验证；Linux 自动归档仍未适配。浏览器扩展本体可以在
+Chromium 系浏览器中构建和加载。

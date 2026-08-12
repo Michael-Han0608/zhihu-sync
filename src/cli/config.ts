@@ -1,15 +1,10 @@
 import { access, readFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
-import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import type { SyncConfig } from './types';
+import { DEFAULT_CONFIG_PATH } from './runtime-paths';
 
-export const DEFAULT_CONFIG_PATH = join(
-  homedir(),
-  '.config',
-  'zhihu-sync',
-  'config.json',
-);
+export { DEFAULT_CONFIG_PATH } from './runtime-paths';
 
 function isCollection(value: unknown): value is SyncConfig['collections'][number] {
   if (!value || typeof value !== 'object') return false;

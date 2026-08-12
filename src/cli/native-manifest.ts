@@ -1,6 +1,6 @@
 import { isAbsolute, join } from 'node:path';
 import { NATIVE_HOST_NAME } from '../shared/native-messages';
-import { DEFAULT_EDGE_USER_DATA_DIR } from './runtime-paths';
+import { DEFAULT_EDGE_USER_DATA_DIR, defaultNativeManifestPath as runtimeNativeManifestPath } from './runtime-paths';
 
 export interface NativeHostManifest {
   name: string;
@@ -18,7 +18,7 @@ export function createNativeHostManifest(
     throw new Error('extensionId 必须是 32 位 a-p 字符');
   }
   if (!isAbsolute(hostPath)) {
-    throw new Error('macOS Native Messaging host path 必须是绝对路径');
+    throw new Error('Native Messaging host path 必须是绝对路径');
   }
   return {
     name: NATIVE_HOST_NAME,
@@ -32,9 +32,5 @@ export function createNativeHostManifest(
 export function defaultNativeManifestPath(
   edgeUserDataDir = DEFAULT_EDGE_USER_DATA_DIR,
 ): string {
-  return join(
-    edgeUserDataDir,
-    'NativeMessagingHosts',
-    `${NATIVE_HOST_NAME}.json`,
-  );
+  return runtimeNativeManifestPath(edgeUserDataDir);
 }
