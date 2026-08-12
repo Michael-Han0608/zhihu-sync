@@ -22,6 +22,10 @@ export interface ContentItem {
   updated_time: number;
   /** 收藏时间（仅收藏夹条目有此字段） */
   collected_time?: number;
+  /** 赞同该回答的时间（仅个人赞同动态有此字段） */
+  voted_time?: number;
+  /** 个人动态 ID，用于增量停止与断点续跑 */
+  activity_id?: string;
 }
 
 /** 从当前页面提取的文章/回答内容 */
@@ -50,6 +54,17 @@ export interface PaginatedResult {
   items: ContentItem[];
   nextUrl: string | null;
   totals: number;
+}
+
+/** 个人赞同回答动态分页结果 */
+export interface VoteActivityPage {
+  items: ContentItem[];
+  activityIds: string[];
+  nextUrl: string | null;
+  isEnd: boolean;
+  remoteSeen: number;
+  skippedUnsupported: number;
+  skippedPaid: number;
 }
 
 /** 知乎评论 */

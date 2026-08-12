@@ -335,6 +335,10 @@ function isCurrentUserProfile(urlToken: string): boolean {
 
 const pendingRequests = new Map<number, { resolve: (data: unknown) => void; reject: (err: Error) => void }>();
 let requestIdCounter = 0;
+let resolveBridgeReady: (() => void) | null = null;
+const bridgeReady = new Promise<void>((resolve) => {
+  resolveBridgeReady = resolve;
+});
 
 export function pageFetch(url: string, responseType?: string): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -358,7 +362,10 @@ export function setupFetchBridge(): void {
   const bridgeScript = document.createElement('script');
   bridgeScript.src = chrome.runtime.getURL('src/content/fetch-bridge.js');
   (document.head || document.documentElement).appendChild(bridgeScript);
-  bridgeScript.onload = () => bridgeScript.remove();
+  bridgeScript.onload = () => {
+    bridgeScript.remove();
+    resolveBridgeReady?.();
+  };
 
   // 2. Content script 侧：监听桥接脚本的响应
   window.addEventListener('__zhihu_dl_fetch_response', ((e: CustomEvent) => {
@@ -378,9 +385,25 @@ export function setupFetchBridge(): void {
 
   // 3. 接收 service worker 转发的请求，通过页面上下文代理
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+    if (message.action === 'getCurrentUserToken') {
+      const scriptTag = document.querySelector('script#js-initialData[type="text/json"]');
+      try {
+        const initialData = scriptTag?.textContent ? JSON.parse(scriptTag.textContent) as any : null;
+        const currentUser = initialData?.initialState?.entities?.currentUser
+          || initialData?.initialState?.currentUser;
+        const token = currentUser?.urlToken
+          || currentUser?.url_token
+          || (typeof currentUser === 'string' ? currentUser : null);
+        sendResponse({ token: typeof token === 'string' ? token : null });
+      } catch {
+        sendResponse({ token: null });
+      }
+      return;
+    }
+
     if (message.action !== 'fetchProxy') return;
 
-    pageFetch(message.url, message.responseType)
+    bridgeReady.then(() => pageFetch(message.url, message.responseType))
       .then((data: unknown) => sendResponse({ data }))
       .catch((err: Error & { httpStatus?: number }) => sendResponse({ error: err.message, status: err.httpStatus }));
 

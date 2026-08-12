@@ -1,12 +1,14 @@
 import { defineManifest } from '@crxjs/vite-plugin';
 import pkg from '../package.json';
+import { EXTENSION_PUBLIC_KEY } from './shared/extension-identity';
 
 export default defineManifest({
   manifest_version: 3,
-  name: '知乎文章下载器',
-  description: '将知乎文章、回答、问题、想法、收藏夹导出为 Markdown 或 Word (.docx) 文件',
+  name: 'Zhihu Sync（本机归档版）',
+  description: '使用 Native Messaging 将知乎收藏夹增量归档到本地 Obsidian',
   version: pkg.version,
-  permissions: ['activeTab', 'storage', 'unlimitedStorage', 'scripting'],
+  key: EXTENSION_PUBLIC_KEY,
+  permissions: ['activeTab', 'storage', 'unlimitedStorage', 'scripting', 'nativeMessaging'],
   host_permissions: [
     'https://www.zhihu.com/*',
     'https://zhuanlan.zhihu.com/*',

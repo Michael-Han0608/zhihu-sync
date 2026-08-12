@@ -21,13 +21,12 @@ export async function waitForInterval(): Promise<void> {
   if (elapsed < MIN_INTERVAL) {
     await new Promise<void>((r) => setTimeout(r, MIN_INTERVAL - elapsed));
   }
+  lastRequestTime = Date.now();
 }
 
 export async function throttledFetch(url: string, options?: RequestInit): Promise<Response> {
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     await waitForInterval();
-    lastRequestTime = Date.now();
-
     const response = await fetch(url, options);
 
     if (response.status === 403 && attempt < MAX_RETRIES) {

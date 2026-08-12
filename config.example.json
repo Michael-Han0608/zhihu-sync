@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "vaultRoot": "/absolute/path/to/your/ObsidianVault/zhihu",
+  "extensionId": "epeaegmdchjfdoiibjojilapfeobibog",
+  "collections": [
+    {
+      "id": "123456789",
+      "name": "示例收藏夹"
+    }
+  ]
+}

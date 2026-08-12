@@ -100,6 +100,8 @@ export function buildFrontmatter(data: ExtractedContent | ContentItem): string {
   if (updated) lines.push(`updated: "${updated}"`);
   const collected = _formatTimestamp((d as ContentItem).collected_time ?? undefined);
   if (collected) lines.push(`collected: "${collected}"`);
+  const voted = _formatTimestamp((d as ContentItem).voted_time ?? undefined);
+  if (voted) lines.push(`voted: "${voted}"`);
   lines.push(`downloaded: "${new Date().toISOString().split('T')[0]}"`);
   lines.push('---', '');
   return lines.join('\n');

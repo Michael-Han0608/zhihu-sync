@@ -4,8 +4,16 @@
 *.har
 node_modules/
 dist/
+dist-cli/
 temp
+formula-smoke.docx
 
 # 本地辅助文件
 myinfo.json
 .codex/
+
+# 本机配置、会话与归档状态
+config.json
+.env
+.env.*
+*.log

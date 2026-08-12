@@ -6,7 +6,7 @@
 import * as throttle from './throttle';
 import { proxyFetchWithRetry, type FetchLikeResponse } from './proxy-fetch';
 import { ApiError } from '@/types/messages';
-import type { PageInfo, ContentItem, PaginatedResult, ZhihuComment } from '@/types/zhihu';
+import type { PageInfo, ContentItem, PaginatedResult, VoteActivityPage, ZhihuComment } from '@/types/zhihu';
 
 // 检测是否运行在 Extension Page（非知乎域名）
 const isExtensionPage = typeof location !== 'undefined' && location.protocol === 'chrome-extension:';
@@ -131,11 +131,17 @@ export function parseContentItem(c: any, createdTime: number): ContentItem {
   const id = rawId
     ? String(rawId)
     : (c.url || `${type}_${createdTime || Math.random()}`);
+  let url = c.url || '';
+  if (type === 'answer' && c.question?.id && rawId) {
+    url = `https://www.zhihu.com/question/${c.question.id}/answer/${rawId}`;
+  } else if (type === 'article' && rawId && /^https:\/\/api\.zhihu\.com\/articles\//.test(url)) {
+    url = `https://zhuanlan.zhihu.com/p/${rawId}`;
+  }
 
   return {
     id,
     type,
-    url: c.url || '',
+    url,
     title,
     author: c.author?.name || '知乎用户',
     html,
@@ -388,5 +394,51 @@ export async function fetchProfilePage(apiUrl: string): Promise<PaginatedResult>
     items,
     nextUrl: paging.is_end ? null : fixHttpUrl(paging.next),
     totals: paging.totals || 0,
+  };
+}
+
+/** 读取一页当前用户动态，只保留赞同回答。 */
+export async function fetchVoteActivityPage(apiUrl: string): Promise<VoteActivityPage> {
+  const response = await apiFetch(apiUrl);
+  if (!response.ok) throw new Error(`赞同动态 API 请求失败: ${response.status}`);
+  const data = await response.json() as any;
+  const paging = data.paging || {};
+  const rows = Array.isArray(data.data) ? data.data : [];
+  const items: ContentItem[] = [];
+  const activityIds: string[] = [];
+  let skippedUnsupported = 0;
+  let skippedPaid = 0;
+
+  for (const activity of rows) {
+    const target = activity?.target || {};
+    const activityId = String(
+      activity?.id
+      || activity?.action_id
+      || `${activity?.verb || 'unknown'}:${target?.id || 'unknown'}:${activity?.created_time || 0}`,
+    );
+    activityIds.push(activityId);
+    if (activity?.verb !== 'MEMBER_VOTEUP_ANSWER' || target?.type !== 'answer') {
+      skippedUnsupported++;
+      continue;
+    }
+    // 赞同不是收藏：不把回答创建时间误写到 collected_time。
+    const item = parseContentItem(target, 0);
+    if (item.isPaidContent) {
+      skippedPaid++;
+      continue;
+    }
+    item.voted_time = activity.created_time || 0;
+    item.activity_id = activityId;
+    items.push(item);
+  }
+
+  return {
+    items,
+    activityIds,
+    nextUrl: paging.is_end ? null : fixHttpUrl(paging.next),
+    isEnd: Boolean(paging.is_end),
+    remoteSeen: rows.length,
+    skippedUnsupported,
+    skippedPaid,
   };
 }

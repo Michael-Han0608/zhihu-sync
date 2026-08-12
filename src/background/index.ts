@@ -10,6 +10,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return;
   }
 
+  if (message.action === 'startZhihuSync' && typeof message.jobId === 'string') {
+    const jobId = message.jobId;
+    if (/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
+      chrome.tabs.create({ url: chrome.runtime.getURL(`src/sync/index.html?job=${encodeURIComponent(jobId)}`) })
+        .then(() => sendResponse({ ok: true }))
+        .catch((error: Error) => sendResponse({ ok: false, error: error.message }));
+    }
+    return true;
+  }
+
   // Extension Page 请求代理
   if (message.action === 'proxyFetch') {
     if (message.responseType === 'text') {
@@ -26,53 +36,72 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
     return true; // 保持 sendResponse 通道
   }
+
+  if (message.action === 'getCurrentUserToken') {
+    getCurrentUserToken()
+      .then((token) => sendResponse({ ok: true, token }))
+      .catch((error: Error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
 });
+
+async function getCurrentUserToken(): Promise<string> {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const tabs = await chrome.tabs.query({ url: ['https://www.zhihu.com/*'] });
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      try {
+        const response = await chrome.tabs.sendMessage(tab.id, { action: 'getCurrentUserToken' });
+        if (typeof response?.token === 'string' && response.token) return response.token;
+      } catch { /* content script 尚未就绪 */ }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error('无法识别当前知乎账号，请使用 zhihu-sync login 重新登录');
+}
 
 /**
  * 找到一个知乎标签页，让其 content script 发起请求
  */
 async function proxyFetchViaContentScript(url: string, responseType?: string): Promise<unknown> {
-  // 找到所有知乎标签页
-  const tabs = await chrome.tabs.query({
-    url: ['https://www.zhihu.com/*', 'https://zhuanlan.zhihu.com/*'],
-  });
-
-  if (tabs.length === 0) {
-    throw new Error('请保持至少一个知乎页面打开（用于代理 API 请求）');
-  }
-
-  // 逐个尝试，直到有一个 content script 能响应
-  for (const tab of tabs) {
-    try {
-      return await new Promise((resolve, reject) => {
-        if (!tab.id) { reject(new Error('no tab id')); return; }
-        chrome.tabs.sendMessage(tab.id, {
-          action: 'fetchProxy',
-          url,
-          responseType,
-        }, (response) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-            return;
-          }
-          if (!response) {
-            reject(new Error('content script 无响应'));
-            return;
-          }
-          if (response.error) {
-            const err = new Error(response.error) as Error & { httpStatus?: number };
-            err.httpStatus = response.status;
-            reject(err);
-            return;
-          }
-          resolve(response.data);
+  let lastConnectionError = '';
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const tabs = await chrome.tabs.query({
+      url: ['https://www.zhihu.com/*', 'https://zhuanlan.zhihu.com/*'],
+    });
+    for (const tab of tabs) {
+      try {
+        return await new Promise((resolve, reject) => {
+          if (!tab.id) { reject(new Error('no tab id')); return; }
+          chrome.tabs.sendMessage(tab.id, {
+            action: 'fetchProxy',
+            url,
+            responseType,
+          }, (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+              return;
+            }
+            if (!response) {
+              reject(new Error('content script 无响应'));
+              return;
+            }
+            if (response.error) {
+              const err = new Error(response.error) as Error & { httpStatus?: number };
+              err.httpStatus = response.status;
+              reject(err);
+              return;
+            }
+            resolve(response.data);
+          });
         });
-      });
-    } catch {
-      // 该标签页失败，尝试下一个
-      continue;
+      } catch (error) {
+        const typed = error as Error & { httpStatus?: number };
+        if (typed.httpStatus !== undefined || typed.message.includes('页面代理请求超时')) throw typed;
+        lastConnectionError = typed.message;
+      }
     }
+    await new Promise((resolve) => setTimeout(resolve, 250));
   }
-
-  throw new Error(`所有知乎页面均无法连接（共 ${tabs.length} 个标签页），请刷新任意一个知乎页面后重试`);
+  throw new Error(`知乎代理页面在 5 秒内未就绪${lastConnectionError ? `：${lastConnectionError}` : ''}`);
 }

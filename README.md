@@ -1,6 +1,33 @@
-# 知乎文章下载器
+# Zhihu Sync
 
-一键将知乎内容导出为 Markdown 或 Word (.docx) 文件的 Chrome 扩展。支持文章、回答、问题、想法、收藏夹、专栏六种内容类型，自动下载图片、导出评论区。
+> **别让知乎收藏夹继续吃灰——让 Agent 用一条命令，把收藏与赞同持续沉淀为开放的本地 Markdown 知识库。**
+>
+> 无需逐篇手动导出；内容可直接用于 Obsidian、Typora、Logseq、VS Code 等工具，
+> 也可导入 Notion，并随时交给 Agent 检索、分析与整理。
+
+基于 [chouheiwa/download-zhihu](https://github.com/chouheiwa/download-zhihu)
+二次开发的浏览器导出扩展与本机增量归档工具。它包含两种使用方式：
+
+- **浏览器导出**：将文章、回答、问题、想法、收藏夹和专栏导出为 Markdown 或 Word。
+- **本机增量归档**：通过 `zhihu-sync`、专用 Edge 和 Native Messaging，将白名单收藏夹及
+  “赞同的回答”只增不减地保存为本地 Markdown；可直接放入 Obsidian 等知识库目录。
+
+本机增量归档的设计、安全边界和命令说明见
+[`docs/zhihu-sync-design.md`](docs/zhihu-sync-design.md)。
+
+## 平台支持
+
+| 组件 | macOS | Windows / Linux |
+|------|-------|-----------------|
+| 浏览器导出扩展 | 可构建、可加载 | Chromium 浏览器原则上可用，尚未完整回归 |
+| `zhihu-sync` 自动归档 | 已在 Apple Silicon + Edge + Node.js 22 验证 | 尚未适配 |
+
+Windows 用户目前可以使用浏览器导出功能，但不能直接使用 `login`、`sync`、`votes`
+及每日定时同步。欢迎提交跨平台适配贡献。
+
+> [!WARNING]
+> 自动归档系统目前是 **Developer Preview**。安装、升级和跨机器迁移流程仍在完善；
+> 请先执行 `--dry-run`，并备份目标知识库目录。
 
 ## 功能特性
 
@@ -16,18 +43,65 @@
 - **图片本地化** — 自动下载文章和评论中的图片，存入本地文件夹
 - **Front Matter** — 自动生成 YAML 元数据（id、标题、作者、来源、日期）
 - **浮动按钮** — 知乎页面内直接显示可拖拽按钮，无需打开弹窗
-- **零配置** — 无需登录、无需 API Key，打开知乎页面直接使用
+- **浏览器内工作** — 不需要单独申请 API Key；需要登录才能访问的内容沿用浏览器会话
 - **隐私安全** — 纯本地运行，不收集任何用户数据
+- **只增不减归档** — 远端取消收藏或取消赞同时不删除本地内容
+- **正文版本记录** — 内容更新时间变化时保留旧正文快照
+- **可选评论覆盖** — 仅显式传入 `--comments` 时保存评论，不保留评论历史版本
 
 ## 安装方式
 
-### 从 GitHub Release 下载
+### 浏览器扩展成品
 
-1. 前往 [Releases](../../releases) 页面下载最新版 ZIP 包
+1. 前往 [Releases](../../releases) 下载 `ZhihuSync-extension-vX.Y.Z.zip`
 2. 解压到一个固定位置（不要删除解压后的文件夹）
 3. 打开 Chrome，访问 `chrome://extensions/`
 4. 右上角开启 **开发者模式**
 5. 点击 **加载已解压的扩展程序**，选择解压后的文件夹
+
+该 ZIP 只包含浏览器导出扩展。要使用 Agent 自动归档，请继续安装下面的 CLI。
+
+### npm 安装自动归档 CLI（Developer Preview）
+
+当前预览版要求 macOS、Microsoft Edge 和 Node.js 22：
+
+```bash
+npm install --global zhihu-sync@next
+zhihu-sync setup --vault "/absolute/path/to/your/knowledge-base/zhihu"
+```
+
+`setup` 会使用当前 Node.js 的绝对路径注册 Native Messaging Host，并创建最小配置；
+它不会静默覆盖已有配置。随后编辑 `~/.config/zhihu-sync/config.json`，补充需要同步的
+收藏夹白名单，再执行：
+
+```bash
+zhihu-sync doctor
+zhihu-sync login
+zhihu-sync sync --dry-run
+zhihu-sync sync
+```
+
+npm 包同时包含 CLI、Native Host 和专用浏览器扩展构建产物，不需要克隆源码或运行构建。
+它仍需要 Node.js 22；自包含安装器尚未提供。
+
+### GitHub Release 源码包（Developer Preview）
+
+每个预览版 Release 同时提供：
+
+- `ZhihuSync-extension-vX.Y.Z.zip`：浏览器扩展成品。
+- `ZhihuSync-developer-preview-source-vX.Y.Z.tar.gz`：完整源码快照，需自行构建。
+- `zhihu-sync-X.Y.Z.tgz`：与 npm `next` 渠道相同的安装包，可用于离线检查或安装。
+- `SHA256SUMS`：上述附件的 SHA-256 校验值。
+
+源码包安装：
+
+```bash
+tar -xzf ZhihuSync-developer-preview-source-vX.Y.Z.tar.gz
+cd zhihu-sync-vX.Y.Z
+npm ci
+npm run build
+node dist-cli/zhihu-sync.mjs setup --vault "/absolute/path/to/your/knowledge-base/zhihu"
+```
 
 ### 从源码构建
 
@@ -40,6 +114,27 @@
 3. 打开 Chrome，访问 `chrome://extensions/`
 4. 开启右上角 **开发者模式**
 5. 点击 **加载已解压的扩展程序**，选择 `dist/` 目录
+
+### 本机增量归档配置（macOS）
+
+增量归档当前面向熟悉命令行的用户，要求 Microsoft Edge、Node.js 22 和一个本地
+Markdown 知识库目录。`setup --vault` 会生成最小配置；也可以手工复制示例：
+
+```bash
+mkdir -p ~/.config/zhihu-sync
+cp config.example.json ~/.config/zhihu-sync/config.json
+```
+
+随后按 [`docs/zhihu-sync-design.md`](docs/zhihu-sync-design.md) 检查配置并使用：
+
+```bash
+zhihu-sync doctor
+zhihu-sync login
+zhihu-sync sync --dry-run
+zhihu-sync sync
+```
+
+`config.json`、专用 Edge 用户目录以及同步所得文章均不会被 Git 跟踪。
 
 ## 使用方法
 
@@ -172,19 +267,39 @@ src/
 | `activeTab` | 读取当前知乎页面内容 |
 | `storage` | 缓存收藏夹/专栏目录数据 |
 | `unlimitedStorage` | 支持大型收藏夹的目录缓存 |
+| `scripting` | 在已授权的知乎页面中执行导出与同步桥接逻辑 |
+| `nativeMessaging` | 与用户本机安装的增量归档组件通信 |
 | `host_permissions` (zhihu.com) | 从导出管理器页面访问知乎 API |
 
-本扩展不会在后台运行，不会访问其他标签页或浏览数据。
+扩展只声明知乎域名权限，不读取其他网站。普通浏览器导出不要求安装 Native host；
+使用本机增量归档时，扩展会在专用 Edge 配置中与本地归档组件通信。Cookie 留在浏览器中，
+项目不收集或上传用户数据。
 
 ## 发布流程(维护者)
 
-1. 在下方「更新日志」新增 `### vX.Y.Z` 小节并写明本次变更(CI 会直接复用为 GitHub Release 正文;缺失则发布失败)。
+当前 Release 默认标记为 Developer Preview，并附带扩展 ZIP、完整源码快照、npm tarball
+和 `SHA256SUMS`。npm 预览版使用 `next` dist-tag，不占用稳定版 `latest`。
+
+首次 npm 发布需要维护者在本机登录 npm，审核 `npm pack --dry-run` 后人工执行
+`npm publish --tag next --access public`。包记录建立后，在 npmjs.com 将
+`Michael-Han0608/zhihu-sync` 的 `release.yml` 配置为 Trusted Publisher，并把仓库变量
+`NPM_PUBLISH_ENABLED` 设为 `true`，后续 tag 才会通过 OIDC 自动同步到 npm；仓库不保存长期 npm Token。
+
+1. 在下方「更新日志」新增 `### vX.Y.Z` 小节并写明本次变更（CI 会直接复用为 GitHub Release 正文；缺失则发布失败）。
 2. 提交改动:`git commit -am "docs: vX.Y.Z 更新日志"`。
 3. 升版本并打 tag(三选一):`npm version patch` / `npm version minor` / `npm version major` —— 自动 bump `package.json`、提交并打好 `vX.Y.Z` tag(`src/manifest.ts` 版本由 `package.json` 自动派生,无需手改)。
 4. 推送:`git push --follow-tags`。
-5. 其余交给 CI:校验版本 == tag → 构建打包 → 发 GitHub Release(正文 = 更新日志 + 安装说明)→ 发布到 Chrome Web Store / Edge Add-ons。
+5. 其余交给 CI：校验版本 == tag → 测试构建 → 生成四类附件与校验文件 → 发布 GitHub Pre-release → 可选同步 npm `next`。浏览器商店发布不在当前工作流中。
 
 ## 更新日志
+
+### v3.3.0
+
+- 新增 `zhihu-sync` 本机增量归档命令和 Native Messaging 桥接。
+- 支持白名单收藏夹与“赞同的回答”只增不减归档。
+- 正文更新时保存旧版本；评论改为显式 `--comments`、覆盖保存且不保留版本。
+- 新增断点续传、磁盘空间安全线、运行超时、只读预检和每日 macOS LaunchAgent。
+- 当前自动归档仅在 macOS Apple Silicon、Microsoft Edge 和 Node.js 22 上验证。
 
 ### v3.1.0
 
@@ -265,4 +380,13 @@ src/
 
 ## 许可证
 
-MIT
+[MIT](LICENSE)。本项目基于
+[chouheiwa/download-zhihu](https://github.com/chouheiwa/download-zhihu) 二次开发；
+上游归属及历史许可证元数据差异见 [NOTICE.md](NOTICE.md)。
+
+## Use at your own risk
+
+本项目是非官方社区工具，按“现状”提供，不保证持续可用、数据完整或与知乎后续改动兼容。
+自动化访问可能受到平台规则、频率限制、接口变化或账号风控影响。请控制使用频率、先执行
+`--dry-run`、妥善备份本地资料，并确保你有权保存和使用相关内容。因使用本项目造成的账号限制、
+数据丢失、内容权利纠纷或其他损失，由使用者自行承担风险和责任。

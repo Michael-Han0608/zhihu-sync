@@ -1,50 +1,85 @@
 {
-  "name": "downloadzhihu",
-  "version": "3.1.0",
-  "description": "一键将知乎内容导出为 Markdown 或 Word (.docx) 文件的 Chrome 扩展。支持文章、回答、问题、想法、收藏夹、专栏六种内容类型，自动下载图片、导出评论区。",
-  "main": "background.js",
-  "directories": {
-    "doc": "docs",
-    "lib": "lib"
+  "name": "zhihu-sync",
+  "version": "3.3.0",
+  "type": "module",
+  "description": "基于知乎文章下载器的本机增量归档工具与浏览器扩展",
+  "bin": {
+    "zhihu-sync": "bin/zhihu-sync.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "dist-cli/",
+    "config.example.json",
+    "docs/zhihu-sync-design.md",
+    "LICENSE",
+    "NOTICE.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "npm run build:extension && npm run build:cli",
+    "build:extension": "vite build",
+    "build:cli": "tsup",
+    "cli": "tsx src/cli/index.ts",
+    "calibrate": "tsx src/cli/index.ts calibrate --dry-run",
+    "doctor": "tsx src/cli/index.ts doctor",
+    "typecheck": "npm run typecheck:cli",
+    "typecheck:cli": "tsc -p tsconfig.cli.json --noEmit",
+    "typecheck:upstream": "tsc --noEmit",
     "dev": "vite",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run typecheck:cli && npm test",
+    "prepack": "npm run build"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/chouheiwa/download-zhihu.git"
+    "url": "git+https://github.com/Michael-Han0608/zhihu-sync.git"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "zhihu",
+    "obsidian",
+    "archive",
+    "browser-extension"
+  ],
+  "author": "Michael Han",
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/chouheiwa/download-zhihu/issues"
+    "url": "https://github.com/Michael-Han0608/zhihu-sync/issues"
   },
-  "homepage": "https://github.com/chouheiwa/download-zhihu#readme",
-  "dependencies": {
+  "homepage": "https://github.com/Michael-Han0608/zhihu-sync#readme",
+  "devDependencies": {
     "@ant-design/cssinjs": "^2.1.2",
     "antd": "^6.3.4",
-    "docx": "^9.6.1",
+    "docx": "^9.7.1",
     "jszip": "^3.10.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "temml": "^0.13.2",
     "turndown": "^7.2.2",
-    "zustand": "^5.0.12"
-  },
-  "devDependencies": {
-    "@crxjs/vite-plugin": "^2.4.0",
+    "zustand": "^5.0.12",
+    "@crxjs/vite-plugin": "^2.7.1",
     "@types/chrome": "^0.1.38",
+    "@types/node": "^24.10.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@types/turndown": "^5.0.6",
-    "@vitejs/plugin-react": "^6.0.1",
+    "@vitejs/plugin-react": "^6.0.5",
     "jsdom": "^29.1.1",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.6",
     "typescript": "^6.0.2",
-    "vite": "^8.0.3",
+    "vite": "^8.2.1",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "esbuild": "^0.28.2"
   }
 }

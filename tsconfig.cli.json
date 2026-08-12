@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "noEmit": true
+  },
+  "include": [
+    "src/cli/**/*.ts",
+    "src/native-host/**/*.ts",
+    "src/shared/native-messages.ts",
+    "src/shared/extension-identity.ts",
+    "src/types/zhihu.ts"
+  ],
+  "exclude": ["node_modules", "dist", "dist-cli"]
+}
