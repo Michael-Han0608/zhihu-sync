@@ -76,7 +76,9 @@ describe('append-only archive', () => {
   });
 
   it('sanitizes each Windows outputDir segment without flattening nesting', () => {
-    expect(sanitizeCollectionOutputDir('父目录/子:目录. ')).toBe('父目录\\子_目录');
+    expect(sanitizeCollectionOutputDir('父目录/子:目录. ')).toBe(
+      process.platform === 'win32' ? '父目录\\子_目录' : '父目录/子:目录. ',
+    );
   });
 
   it('keeps collection names unchanged outside Windows', () => {

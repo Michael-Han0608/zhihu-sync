@@ -314,14 +314,17 @@ src/
 
 ## 更新日志
 
+### v3.4.0
+
+- Windows 自动归档适配：支持专用 Edge 配置、Native Messaging 注册表和 Windows Task Scheduler；
+  收藏夹目录会按 Windows 文件名规则安全化，并已通过真实非 `dry-run` 写入 smoke test。
+
 ### v3.3.0
 
 - 新增 `zhihu-sync` 本机增量归档命令和 Native Messaging 桥接。
 - 支持白名单收藏夹与“赞同的回答”只增不减归档。
 - 正文更新时保存旧版本；评论改为显式 `--comments`、覆盖保存且不保留版本。
 - 新增断点续传、磁盘空间安全线、运行超时、只读预检和每日 macOS LaunchAgent。
-- Windows 适配使用专用 Edge 配置、Native Messaging 注册表和 Windows Task Scheduler，
-  并已完成真实 `dry-run` 与临时 vault 写入 smoke test。
 
 ### v3.1.0
 
